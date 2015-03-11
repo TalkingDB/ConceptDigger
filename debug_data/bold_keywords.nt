@@ -1,0 +1,51 @@
+<http://dbpedia.org/resource/Anarchism>    <http://www.w3.org/2000/01/rdf-schema#label>    "Anarchism"@en .
+<http://dbpedia.org/resource/Autism>    <http://www.w3.org/2000/01/rdf-schema#label>    "Autism"@en .
+<http://dbpedia.org/resource/Albedo>    <http://www.w3.org/2000/01/rdf-schema#label>    "Albedo"@en .
+<http://dbpedia.org/resource/A>    <http://www.w3.org/2000/01/rdf-schema#label>    "A"@en .
+<http://dbpedia.org/resource/A>    <http://www.w3.org/2000/01/rdf-schema#label>    "a"@en .
+<http://dbpedia.org/resource/A>    <http://www.w3.org/2000/01/rdf-schema#label>    "ɑ"@en .
+<http://dbpedia.org/resource/Alabama>    <http://www.w3.org/2000/01/rdf-schema#label>    "Alabama"@en .
+<http://dbpedia.org/resource/Achilles>    <http://www.w3.org/2000/01/rdf-schema#label>    "Achilles"@en .
+<http://dbpedia.org/resource/Abraham_Lincoln>    <http://www.w3.org/2000/01/rdf-schema#label>    "Abraham Lincoln"@en .
+<http://dbpedia.org/resource/Aristotle>    <http://www.w3.org/2000/01/rdf-schema#label>    "Aristotle"@en .
+<http://dbpedia.org/resource/An_American_in_Paris>    <http://www.w3.org/2000/01/rdf-schema#label>    "''An American in Paris"@en .
+<http://dbpedia.org/resource/Academy_Award_for_Best_Production_Design>    <http://www.w3.org/2000/01/rdf-schema#label>    "Academy Award for Best Production Design"@en .
+<http://dbpedia.org/resource/Academy_Award_for_Best_Production_Design>    <http://www.w3.org/2000/01/rdf-schema#label>    "Best Art Direction"@en .
+<http://dbpedia.org/resource/Academy_Awards>    <http://www.w3.org/2000/01/rdf-schema#label>    "The Academy Awards"@en .
+<http://dbpedia.org/resource/Academy_Awards>    <http://www.w3.org/2000/01/rdf-schema#label>    "The Oscars"@en .
+<http://dbpedia.org/resource/Actrius>    <http://www.w3.org/2000/01/rdf-schema#label>    "''Actrius"@en .
+<http://dbpedia.org/resource/Animalia_(book)>    <http://www.w3.org/2000/01/rdf-schema#label>    "Animalia"@en .
+<http://dbpedia.org/resource/Animalia_(book)>    <http://www.w3.org/2000/01/rdf-schema#label>    "''Animalia"@en .
+<http://dbpedia.org/resource/International_Atomic_Time>    <http://www.w3.org/2000/01/rdf-schema#label>    "International Atomic Time"@en .
+<http://dbpedia.org/resource/International_Atomic_Time>    <http://www.w3.org/2000/01/rdf-schema#label>    "TAI"@en .
+<http://dbpedia.org/resource/International_Atomic_Time>    <http://www.w3.org/2000/01/rdf-schema#label>    "Temps atomique international"@en .
+<http://dbpedia.org/resource/Altruism>    <http://www.w3.org/2000/01/rdf-schema#label>    "Altruism"@en .
+<http://dbpedia.org/resource/Altruism>    <http://www.w3.org/2000/01/rdf-schema#label>    "selflessness"@en .
+<http://dbpedia.org/resource/Ayn_Rand>    <http://www.w3.org/2000/01/rdf-schema#label>    "Ayn Rand"@en .
+<http://dbpedia.org/resource/Ayn_Rand>    <http://www.w3.org/2000/01/rdf-schema#label>    "Alisa Zinov'yevna Rosenbaum"@en .
+<http://dbpedia.org/resource/Alain_Connes>    <http://www.w3.org/2000/01/rdf-schema#label>    "Alain Connes"@en .
+<http://dbpedia.org/resource/Allan_Dwan>    <http://www.w3.org/2000/01/rdf-schema#label>    "Allan Dwan"@en .
+<http://dbpedia.org/resource/Allan_Dwan>    <http://www.w3.org/2000/01/rdf-schema#label>    "Joseph Aloysius Dwan"@en .
+<http://dbpedia.org/resource/Allan_Dwan>    <http://www.w3.org/2000/01/rdf-schema#label>    "'[[The Half-Breed (1916 film)|The Half-Breed]]"@en .
+<http://dbpedia.org/resource/Algeria>    <http://www.w3.org/2000/01/rdf-schema#label>    "Algeria"@en .
+<http://dbpedia.org/resource/Algeria>    <http://www.w3.org/2000/01/rdf-schema#label>    "People's Democratic Republic of Algeria"@en .
+<http://dbpedia.org/resource/Anthropology>    <http://www.w3.org/2000/01/rdf-schema#label>    "Anthropology"@en .
+<http://dbpedia.org/resource/Agricultural_science>    <http://www.w3.org/2000/01/rdf-schema#label>    "Agricultural science"@en .
+<http://dbpedia.org/resource/Alchemy>    <http://www.w3.org/2000/01/rdf-schema#label>    "Alchemy"@en .
+<http://dbpedia.org/resource/Alien>    <http://www.w3.org/2000/01/rdf-schema#label>    "Alien"@en .
+<http://dbpedia.org/resource/Astronomer>    <http://www.w3.org/2000/01/rdf-schema#label>    "astronomer"@en .
+<http://dbpedia.org/resource/ASCII>    <http://www.w3.org/2000/01/rdf-schema#label>    "ASCII"@en .
+<http://dbpedia.org/resource/ASCII>    <http://www.w3.org/2000/01/rdf-schema#label>    "American Standard Code for Information Interchange"@en .
+<http://dbpedia.org/resource/ASCII>    <http://www.w3.org/2000/01/rdf-schema#label>    "US-ASCII"@en .
+<http://dbpedia.org/resource/Austin_(disambiguation)>    <http://www.w3.org/2000/01/rdf-schema#label>    "Austin"@en .
+<http://dbpedia.org/resource/Austin_(disambiguation)>    <http://www.w3.org/2000/01/rdf-schema#label>    "Austin"@en .
+<http://dbpedia.org/resource/Animation>    <http://www.w3.org/2000/01/rdf-schema#label>    "Animation"@en .
+<http://dbpedia.org/resource/Apollo>    <http://www.w3.org/2000/01/rdf-schema#label>    "Apollo"@en .
+<http://dbpedia.org/resource/Apollo>    <http://www.w3.org/2000/01/rdf-schema#label>    "2"@en .
+<http://dbpedia.org/resource/Apollo>    <http://www.w3.org/2000/01/rdf-schema#label>    "30"@en .
+<http://dbpedia.org/resource/Apollo>    <http://www.w3.org/2000/01/rdf-schema#label>    "61"@en .
+<http://dbpedia.org/resource/Apollo>    <http://www.w3.org/2000/01/rdf-schema#label>    "38"@en .
+<http://dbpedia.org/resource/Andre_Agassi>    <http://www.w3.org/2000/01/rdf-schema#label>    "1"@en .
+<http://dbpedia.org/resource/Andre_Agassi>    <http://www.w3.org/2000/01/rdf-schema#label>    "W"@en .
+<http://dbpedia.org/resource/Andre_Agassi>    <http://www.w3.org/2000/01/rdf-schema#label>    "W"@en .
+<http://dbpedia.org/resource/Prawn> <http://www.w3.org/2000/01/rdf-schema#label> "Prawn"@en .
