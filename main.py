@@ -3,21 +3,17 @@ Created on 14-Jan-2015
 
 @author: tushar@solutionbeyond.net
 '''
-import networkx as nx
-from networkx.readwrite import json_graph
-import cPickle as pickle
+from graph_tool.all import *
+import pickle
 import time
 import re
-import thread
 import socket
 import json
-import SimpleHTTPServer
-from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 
 #CONFIGURE
 address = "" #blank probably means 'listen on ALL IPs'
 port = 5007
-createFresh = False
+createFresh = True
 
 
 # import sys;sys.path.append(r'/usr/lib64/python2.7/org.python.pydev_3.7.0.201408261926/pysrc')
@@ -28,19 +24,19 @@ createFresh = False
 # CONFIGURE
 #dataFolderPrefix = '/media/sb/0ecc919c-e385-49d7-b59a-ec4dd463df75/'
 dataFolderPrefix = 'debug_data/'
-# dataFolderPrefix = ''
+dataFolderPrefix = 'new_debug_data'
 
 '''[pseudocode]
 load dbpedia nodes (their synonyms and classification) from HDD file to RAM Tree object
 '''
 
-graph = nx.DiGraph()
+graph = Graph()
 nodesDict = {}
 i = 1
 
 def insertNodes(fromFile, predicateKeyword):
     t2 = time.time()
-    print "processing " + fromFile + " ..."
+    print ("processing " + fromFile + " ...")
     i = len(nodesDict)
     f = open(fromFile, 'r')
     for line in f.readlines():
@@ -67,14 +63,14 @@ def insertNodes(fromFile, predicateKeyword):
             graph.add_edge(parentNode,childNode)
     f.close()
     t3 = time.time()
-    print "processed " + fromFile + " in " + str(t3-t2) + " seconds" 
+    print ("processed " + fromFile + " in " + str(t3-t2) + " seconds") 
 
 def convertEntityURItoLabel(entity_URI):
     return entity_URI.replace("_"," ").replace(" (disambiguation)","").lower()
 
 def assignSynonymFromLiteral(fromFile, predicateKeywords):
     t2 = time.time()
-    print "processing " + fromFile + " ..."
+    print ("processing " + fromFile + " ...")
     
     i = len(nodesDict)
 
@@ -101,11 +97,11 @@ def assignSynonymFromLiteral(fromFile, predicateKeywords):
                     graph.node[nodesDict[subject]]['synonyms'].append([obj,fromFile])
     f.close()
     t3 = time.time()
-    print "processed " + fromFile + " in " + str(t3-t2) + " seconds" 
+    print ("processed " + fromFile + " in " + str(t3-t2) + " seconds") 
 
 def assignSynonymFromURI(fromFile, predicateKeywords):
     t2 = time.time()
-    print "processing " + fromFile + " ..."
+    print ("processing " + fromFile + " ...")
     i = len(nodesDict)
     f = open(fromFile, 'r')
     #p = open("debug.log",'wb')
@@ -141,15 +137,15 @@ def assignSynonymFromURI(fromFile, predicateKeywords):
     f.close()
 #     p.close()
     t3 = time.time()
-    print "processed " + fromFile + " in " + str(t3-t2) + " seconds" 
+    print ("processed " + fromFile + " in " + str(t3-t2) + " seconds") 
 
 if createFresh == False:
-    print 'Loading CACHE of graph data from hardisk..'
+    print ('Loading CACHE of graph data from hardisk..')
     t0 = time.time()
     graph = pickle.load (open(dataFolderPrefix + "graph.pickle","rb"))
     nodesDict = pickle.load (open(dataFolderPrefix + "nodesDict.pickle","rb"))
     t1 = time.time()
-    print "Time to load CACHE of graph data (from pickle files) = " + str(t1-t0)
+    print ("Time to load CACHE of graph data (from pickle files) = " + str(t1-t0))
 else:
     t0 = time.time()
     i = 1
@@ -161,7 +157,7 @@ else:
     assignSynonymFromURI(dataFolderPrefix + "disambiguations_en.nt", ['http://dbpedia.org/ontology/wikiPageDisambiguates'])
     assignSynonymFromURI(dataFolderPrefix + "redirects_en.nt", ['http://dbpedia.org/ontology/wikiPageRedirects'])
     t1 = time.time()
-    print "Graph loaded in : " + str(t1-t0) + " seconds"
+    print ("Graph loaded in : " + str(t1-t0) + " seconds")
 
 #     print "processing skos_categories_en.nt"
 #     thread.start_new_thread(insertNodes,(dataFolderPrefix + "skos_categories_en.nt", "/skos/core#broader"))
@@ -178,7 +174,7 @@ else:
 #     assignSynonymFromURI(dataFolderPrefix + "redirects_en.nt", ['http://dbpedia.org/ontology/wikiPageDisambiguates'])
 
 
-    print "dumping pickle files"
+    print ("dumping pickle files")
     pickle.dump(graph, open(dataFolderPrefix + "graph.pickle","wb"),protocol=2)
     pickle.dump(nodesDict, open(dataFolderPrefix + "nodesDict.pickle","wb"),protocol=2)
 
@@ -271,7 +267,7 @@ sok.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 sok.bind((address, port))
 sok.listen(5)
 
-print 'DBPedia Category & Page Digger & Synonym finder is listening on ' + address + ':' + str(port), '\nPress Ctrl+C to stop the server.'
+print ('DBPedia Category & Page Digger & Synonym finder is listening on ' + address + ':' + str(port), '\nPress Ctrl+C to stop the server.')
 
 while True:
     conn, addr = sok.accept()
@@ -290,8 +286,8 @@ while True:
         maxDepth =  subcategory[1]
         returnCategories = subcategory[2]
         returnPages = subcategory[3]
-        print 'seedCategory = ' + seedCategory
-        print 'maxDepth = ' + str(maxDepth)
+        print ('seedCategory = ' + seedCategory)
+        print ('maxDepth = ' + str(maxDepth))
     
         '''[pseudocode]
         locate seed category in tree
@@ -301,7 +297,7 @@ while True:
         #enumerate through all leaf nodes
         enumerateChild(seedCategoryNode,0,returnCategories,returnPages, seedCategoryNode)
     t1 = time.time()
-    print "Children enumerated in " + str(t1-t0) + " seconds"
+    print ("Children enumerated in " + str(t1-t0) + " seconds")
     
     '''[pseudocode]
     extract synonyms of each node. return JSON file which can be imported in CP to train our Noisy NER
@@ -310,7 +306,7 @@ while True:
     conn.send(prepareOutput()) 
     conn.close()
     t1 = time.time()
-    print "Reply sent in " + str(t1-t0) + " seconds"
+    print ("Reply sent in " + str(t1-t0) + " seconds")
 #     f = open('output.txt','wb')
 #     f.write(output)
 #     f.close()
