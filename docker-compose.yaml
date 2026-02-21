@@ -1,0 +1,13 @@
+services:
+  digger:
+    build: .
+    ports:
+      - "5007:5007"
+    volumes:
+      - digger_data:/app/data
+    environment:
+      - STORE_PATH=/app/data/digger_store.json
+    restart: unless-stopped
+
+volumes:
+  digger_data:

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Any
@@ -45,7 +46,7 @@ SPARQL_TIMEOUT   = 30           # seconds per SPARQL request
 MAX_DEPTH        = 5            # hard ceiling — callers can request less
 HTTP_CONCURRENCY = 8            # max parallel SPARQL requests in one dig session
 CACHE_MAX_SIZE   = 512          # nodes whose children/synonyms are cached in RAM
-STORE_PATH       = Path("digger_store.json")   # where results are persisted on disk
+STORE_PATH       = Path(os.getenv("STORE_PATH", "digger_store.json"))
 
 
 # ---------------------------------------------------------------------------
