@@ -1,0 +1,12 @@
+services:
+  digger:
+    build: .
+    ports:
+      - "5007:5007"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app  # bind mount — uvicorn --reload picks up changes
+    environment:
+      - STORE_PATH=/app/data/digger_store.json
+    restart: unless-stopped
+  
