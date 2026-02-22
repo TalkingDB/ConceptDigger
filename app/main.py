@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from pydantic import BaseModel, Field
-from store import EntityStore
+from app.store import EntityStore
 
 # ---------------------------------------------------------------------------
 # Logging
