@@ -1,0 +1,24 @@
+services:
+  conceptdigger:
+    build: .
+    ports:
+      - "5007:5007"
+    volumes:
+      - ./app:/app/app
+      - ./data:/app/data
+    environment:
+      - CACHE_FILE_PATH=data/graph_cache.json
+    # Overrides the Dockerfile's CMD for dev only. --reload-dir is scoped to
+    # app/ specifically so the watcher isn't also polling data/'s ~1.5MB
+    # JSON file (which changes on every /dig persist() and would otherwise
+    # trigger pointless restarts).
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "5007"
+      - --reload
+      - --reload-dir
+      - app

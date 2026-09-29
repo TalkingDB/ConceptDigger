@@ -8,13 +8,13 @@ handler shares the same in-memory graph and connection pool.
 Run directly with:
     uvicorn app.main:app --host 0.0.0.0 --port 5007
 
-(see start.sh for the containerized version)
 """
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
 
+from .routers import ontology
 from .config import settings
 from .graph_store import GraphStore
 from .hydration import HydrationService
@@ -44,7 +44,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(dig.router)
-app.include_router(hydrate.router)
 app.include_router(health.router)
+app.include_router(dig.router)
+# app.include_router(hydrate.router)
 app.include_router(graph.router)
