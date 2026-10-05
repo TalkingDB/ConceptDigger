@@ -14,11 +14,10 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
-from .routers import ontology
 from .config import settings
 from .graph_store import GraphStore
 from .hydration import HydrationService
-from .routers import dig, health, hydrate, graph
+from .routers import dig, health, hydrate, graph, graph_data
 from .sparql_client import sparql_client
 
 
@@ -44,7 +43,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(health.router)
 app.include_router(dig.router)
-# app.include_router(hydrate.router)
+app.include_router(hydrate.router)
+app.include_router(health.router)
 app.include_router(graph.router)
+app.include_router(graph_data.router)
