@@ -1,28 +1,16 @@
 """
-Core traversal logic for /api/v1/dig and /api/v1/dig/fixed.
+Core traversal logic for /api/v1/dig
 
-Both endpoints walk the same descendant tree from each seed category, up to
+The Endpoint walk the same descendant tree from each seed category, up to
 max_depth, collecting categories and/or pages per the return_categories /
 return_pages flags — this mirrors the legacy enumerateChild()/prepareOutput()
 pair exactly, including recursing into every category regardless of whether
 categories are being *returned*, since a category might still contain pages
 deeper down that should be returned.
-
-The two endpoints differ only in output attribution:
-
-  - /dig (legacy):  seed_category is set from the matched node's OWN name.
-    This is the original bug (`graph.node[child]['name']` instead of the
-    seed that was actually dug), preserved on purpose. Matches are deduped
-    globally across the whole request batch, same as the original
-    `set(enumeratedChildInList)`.
-
-  - /dig/fixed:      seed_category is the seed that was actually dug for that
-    branch. Because a node can legitimately be reachable from more than one
-    seed in the same batch, dedup here is per (node, seed) pair rather than
-    global.
 """
 import logging
 from typing import Dict, List, Set, Tuple
+from fastapi import HTTPException
 
 from .config import settings
 from .graph_store import GraphStore
@@ -30,7 +18,7 @@ from .hydration import HydrationService, SparqlBudget
 
 logger = logging.getLogger(__name__)
 
-DigItem = Tuple[str, int, int, int]  # (seed_category, max_depth, return_categories, return_pages)
+DigItem = Tuple[str, int, int, int]
 
 
 async def _enumerate_descendants(
@@ -53,16 +41,6 @@ async def _enumerate_descendants(
         if is_category:
             if return_categories:
                 collected.append((child, seed))
-                # Hydrate synonyms for this match now, before recursing
-                # deeper. If we waited until the whole subtree had been
-                # walked (as run_dig used to), structure hydration for the
-                # rest of the tree would routinely burn through the entire
-                # shared budget first, leaving nothing for enrichment and
-                # synonyms_hydrated false on almost every node. Doing it here
-                # means budget is spent fairly between "go deeper" and
-                # "enrich what we already found", so matches collected
-                # earlier in the walk reliably get their synonyms even if
-                # the budget runs out later on.
                 if not store.is_synonyms_hydrated(child):
                     await hydration.hydrate_synonyms(child, budget)
             if cur_depth < max_depth:
@@ -125,7 +103,10 @@ async def run_dig(
                 "skipping seed, doesn't look like a real category: %s",
                 seed_category,
             )
-            continue
+            raise HTTPException(
+                status_code=404,
+                detail=f"Category not found: {seed_category}",
+            )
 
         if not store.is_structure_hydrated(seed_category):
             await hydration.hydrate_category_structure(seed_category, budget)
