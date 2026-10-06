@@ -28,7 +28,9 @@ class Settings:
     # whatever was already hydrated (this call or a previous one) is returned.
     max_sparql_calls_per_request: int = int(os.getenv("MAX_SPARQL_CALLS_PER_REQUEST", "10000"))
 
-    # Per-SPARQL-call HTTP timeout.
+    # Per-SPARQL-call HTTP read timeout. Public DBpedia often exceeds this on
+    # reverse lookups (redirects/disambiguations); those are retried once then
+    # skipped so /dig can continue.
     sparql_timeout_seconds: float = float(os.getenv("SPARQL_TIMEOUT_SECONDS", "15"))
 
     # Minimum gap (seconds) enforced between successive outgoing SPARQL calls,

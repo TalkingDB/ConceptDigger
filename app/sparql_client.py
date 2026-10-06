@@ -31,7 +31,18 @@ from .config import settings
 # HTTP statuses worth retrying after a backoff — 429 (rate limited) and 503
 # (endpoint temporarily overloaded), matching DBpedia's own operational
 # guidance for its public SPARQL endpoint.
-_RETRYABLE_STATUSES = {429, 503}
+_RETRYABLE_STATUSES = {429, 502, 503, 504}
+# Timeouts get one extra attempt; 429/5xx keep SPARQL_MAX_RETRIES.
+_TIMEOUT_RETRIES = 1
+_RETRYABLE_EXCEPTIONS = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+)
+
+
+class SparqlTransientError(Exception):
+    """DBpedia/SPARQL was slow or unavailable after retries. Safe to skip this lookup."""
 
 _PREFIXES = """
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -82,59 +93,67 @@ class SparqlClient:
                 await asyncio.sleep(wait)
             self._last_call_at = time.monotonic()
 
-    async def _run(self, client: httpx.AsyncClient, query: str) -> List[dict]:
-        attempt = 0
-        while True:
-            await self._throttle()
-            resp = await client.get(
-                self.endpoint,
-                params={"query": _PREFIXES + query, "format": "application/sparql-results+json"},
-                headers={"Accept": "application/sparql-results+json"},
-                timeout=self.timeout,
-            )
-            if resp.status_code in _RETRYABLE_STATUSES and attempt < self.max_retries:
-                attempt += 1
-                # Honor the server's Retry-After header when it gives one;
-                # otherwise fall back to a short exponential backoff. Either
-                # way this sleep is in addition to the steady-state throttle
-                # above, not a replacement for it.
-                retry_after = resp.headers.get("Retry-After")
-                try:
-                    delay = float(retry_after) if retry_after else 2.0 * attempt
-                except ValueError:
-                    delay = 2.0 * attempt
-                await asyncio.sleep(delay)
-                continue
-            resp.raise_for_status()
-            break
-        payload = resp.json()
-        return payload["results"]["bindings"]
+    def _timeout(self) -> httpx.Timeout:
+        read = float(self.timeout)
+        return httpx.Timeout(read, connect=min(10.0, read), pool=10.0)
+
+    async def _backoff(self, attempt: int, retry_after: str | None = None) -> None:
+        try:
+            delay = float(retry_after) if retry_after else 2.0 * attempt
+        except ValueError:
+            delay = 2.0 * attempt
+        await asyncio.sleep(delay)
 
     async def _execute(self, client: httpx.AsyncClient, query: str) -> dict:
         """Shared retry/throttle loop. Returns the raw decoded JSON payload;
         callers pull out either `results.bindings` (SELECT) or `boolean`
-        (ASK)."""
+        (ASK). Timeouts and 429/502/503/504 are retried, then raised as
+        SparqlTransientError so /dig can skip this lookup instead of 500ing.
+        """
+        last_error: Exception | None = None
         attempt = 0
         while True:
             await self._throttle()
-            resp = await client.get(
-                self.endpoint,
-                params={"query": _PREFIXES + query, "format": "application/sparql-results+json"},
-                headers={"Accept": "application/sparql-results+json"},
-                timeout=self.timeout,
-            )
-            if resp.status_code in _RETRYABLE_STATUSES and attempt < self.max_retries:
+            try:
+                resp = await client.post(
+                    self.endpoint,
+                    data={
+                        "query": _PREFIXES + query,
+                        "format": "application/sparql-results+json",
+                    },
+                    headers={"Accept": "application/sparql-results+json"},
+                    timeout=self._timeout(),
+                )
+            except _RETRYABLE_EXCEPTIONS as exc:
+                last_error = exc
+                retry_limit = _TIMEOUT_RETRIES if isinstance(exc, httpx.TimeoutException) else self.max_retries
+                if attempt >= retry_limit:
+                    raise SparqlTransientError(
+                        f"SPARQL lookup failed after {attempt + 1} attempt(s): {exc}"
+                    ) from exc
                 attempt += 1
-                retry_after = resp.headers.get("Retry-After")
-                try:
-                    delay = float(retry_after) if retry_after else 2.0 * attempt
-                except ValueError:
-                    delay = 2.0 * attempt
-                await asyncio.sleep(delay)
+                await self._backoff(attempt)
                 continue
-            resp.raise_for_status()
-            break
-        return resp.json()
+
+            if resp.status_code in _RETRYABLE_STATUSES and attempt < self.max_retries:
+                last_error = httpx.HTTPStatusError(
+                    f"SPARQL HTTP {resp.status_code}",
+                    request=resp.request,
+                    response=resp,
+                )
+                attempt += 1
+                await self._backoff(attempt, resp.headers.get("Retry-After"))
+                continue
+
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code >= 500:
+                    raise SparqlTransientError(
+                        f"SPARQL endpoint returned HTTP {exc.response.status_code}"
+                    ) from exc
+                raise
+            return resp.json()
 
     async def _run(self, client: httpx.AsyncClient, query: str) -> List[dict]:
         payload = await self._execute(client, query)

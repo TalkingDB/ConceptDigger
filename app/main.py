@@ -13,7 +13,8 @@ import logging
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 logging.getLogger("app").setLevel(logging.INFO)
 if not logging.getLogger("app").handlers:
@@ -24,13 +25,15 @@ from .config import settings
 from .graph_store import GraphStore
 from .hydration import HydrationService
 from .routers import dig, health, hydrate, graph, graph_data
-from .sparql_client import sparql_client
+from .sparql_client import SparqlTransientError, sparql_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     store = GraphStore(settings.cache_file_path)
-    http_client = httpx.AsyncClient()
+    http_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(settings.sparql_timeout_seconds, connect=10.0, pool=10.0),
+    )
     hydration = HydrationService(store, sparql_client, http_client)
 
     app.state.store = store
@@ -54,3 +57,8 @@ app.include_router(hydrate.router)
 app.include_router(health.router)
 app.include_router(graph.router)
 app.include_router(graph_data.router)
+
+
+@app.exception_handler(SparqlTransientError)
+async def sparql_transient(_: Request, exc: SparqlTransientError):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
