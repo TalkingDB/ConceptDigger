@@ -36,6 +36,7 @@ import json
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
+from ..category import require_resource
 from ..config import settings
 from ..graph_store import GraphStore
 
@@ -1681,10 +1682,8 @@ async def get_graph(
     )
 
 
-    depth = min(
-        depth,
-        settings.max_depth_hard_cap,
-    )
+    root = require_resource(root)
+    depth = min(depth, settings.max_depth_hard_cap + 1)
 
 
     graph_data = _build_graph_data(
