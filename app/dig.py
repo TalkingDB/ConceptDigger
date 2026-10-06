@@ -36,7 +36,14 @@ async def _enumerate_descendants(
     if not store.is_structure_hydrated(node):
         await hydration.hydrate_category_structure(node, budget)
 
-    for child in store.children(node):
+    children = store.children(node)
+    logger.info(
+        "dig progress: %s depth=%s/%s children=%s collected=%s sparql=%s/%s",
+        node, cur_depth, max_depth, len(children), len(collected),
+        budget.used, budget.limit,
+    )
+
+    for child in children:
         is_category = child.startswith("Category:")
         if is_category:
             if return_categories:
@@ -116,6 +123,7 @@ async def run_dig(
             # skip it rather than crash the whole batch.
             continue
 
+        logger.info("dig started: seed=%s max_depth=%s", seed_category, max_depth)
         collected: List[Tuple[str, str]] = []
         await _enumerate_descendants(
             hydration, store, seed_category, 0, max_depth,

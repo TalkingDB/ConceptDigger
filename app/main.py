@@ -9,10 +9,16 @@ Run directly with:
     uvicorn app.main:app --host 0.0.0.0 --port 5007
 
 """
+import logging
 from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI
+
+logging.getLogger("app").setLevel(logging.INFO)
+if not logging.getLogger("app").handlers:
+    logging.getLogger("app").addHandler(logging.StreamHandler())
+
 
 from .config import settings
 from .graph_store import GraphStore
