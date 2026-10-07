@@ -1,0 +1,3 @@
+# Only needed to run wikipedia_bold_to_ntriple_file.py, the standalone
+# offline tool. Not installed in the app's container image.
+dewiki
