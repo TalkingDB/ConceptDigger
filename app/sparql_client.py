@@ -31,7 +31,7 @@ from .config import settings
 # HTTP statuses worth retrying after a backoff — 429 (rate limited) and 503
 # (endpoint temporarily overloaded), matching DBpedia's own operational
 # guidance for its public SPARQL endpoint.
-_RETRYABLE_STATUSES = {429, 502, 503, 504}
+_RETRYABLE_STATUSES = {405, 429, 502, 503, 504}
 # Timeouts get one extra attempt; 429/5xx keep SPARQL_MAX_RETRIES.
 _TIMEOUT_RETRIES = 1
 _RETRYABLE_EXCEPTIONS = (
@@ -107,8 +107,9 @@ class SparqlClient:
     async def _execute(self, client: httpx.AsyncClient, query: str) -> dict:
         """Shared retry/throttle loop. Returns the raw decoded JSON payload;
         callers pull out either `results.bindings` (SELECT) or `boolean`
-        (ASK). Timeouts and 429/502/503/504 are retried, then raised as
+        (ASK). Timeouts and 405/429/502/503/504 are retried, then raised as
         SparqlTransientError so /dig can skip this lookup instead of 500ing.
+        A 405 from the public endpoint's front proxy is retried once as a GET.
         """
         last_error: Exception | None = None
         attempt = 0

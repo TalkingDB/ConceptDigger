@@ -242,7 +242,7 @@ app/
   graph_store.py     In-memory graph, JSON cache, de-duplication
   utils.py           Label conversion and name safety checks
   routers/           dig, hydrate, graph, graph_data, health
-tests/               test_category.py, test_sparql_resilience.py
+tests/               unit + functional API tests, fixtures, golden files
 Dockerfile
 docker-compose.yml
 start.sh
@@ -250,10 +250,20 @@ start.sh
 
 ## Tests
 
+Functional tests talk to the FastAPI app with a mocked SPARQL client and
+fixtures in `tests/test_data/`. They never call live DBpedia.
+
 ```bash
-pip install pytest
+pip install -r requirements-dev.txt
 pytest tests/
 ```
+
+Run artifacts (JUnit XML, HTML report, JSON summary) are written to
+`tests/records/`. Expected `/dig` and `/graph/data` payloads are stored in
+`tests/test_data/golden/`.
+
+GitHub Actions runs `pytest tests/` on every pull request and every push to
+`main`/`master`. Mark the `pytest` check as required in branch protection.
 
 ## Differences from the legacy service
 

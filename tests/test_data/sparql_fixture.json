@@ -1,0 +1,32 @@
+{
+  "categories": {
+    "Category:Test_food": true,
+    "Category:Test_spices": true
+  },
+  "structure": {
+    "Category:Test_food": {
+      "subcategories": ["Category:Test_spices"],
+      "articles": ["Cinnamon"]
+    },
+    "Category:Test_spices": {
+      "subcategories": [],
+      "articles": ["Nutmeg"]
+    }
+  },
+  "labels": {
+    "Category:Test_food": ["Test food"],
+    "Category:Test_spices": ["Test spices"],
+    "Cinnamon": ["Cinnamon"],
+    "Nutmeg": ["Nutmeg"]
+  },
+  "alt_names": {
+    "Cinnamon": ["Ceylon cinnamon"],
+    "Category:Test_spices": ["spice category"]
+  },
+  "redirects": {
+    "Cinnamon": ["Cinnamomum_verum"]
+  },
+  "disambiguations": {
+    "Cinnamon": ["Cinnamon_(disambiguation)"]
+  }
+}
