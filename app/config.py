@@ -48,7 +48,7 @@ class Settings:
     # Where the hydrated graph is persisted as JSON, so a container restart
     # doesn't have to re-hydrate everything from scratch. Mount this path as
     # a volume in production.
-    cache_file_path: str = os.getenv("CACHE_FILE_PATH", "data/wiki_data.json")
+    cache_file_path: str = os.getenv("CACHE_FILE_PATH", "data/graph_cache.json")
 
     port: int = int(os.getenv("PORT", "5007"))
 

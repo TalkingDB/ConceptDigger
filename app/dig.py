@@ -48,9 +48,8 @@ async def _enumerate_descendants(
         if is_category:
             if return_categories:
                 collected.append((child, seed))
-                # Undo: re-enable synonym SPARQL (4 calls per category).
-                # if not store.is_synonyms_hydrated(child):
-                #     await hydration.hydrate_synonyms(child, budget)
+                if not store.is_synonyms_hydrated(child):
+                    await hydration.hydrate_synonyms(child, budget)
             if cur_depth < max_depth:
                 await _enumerate_descendants(
                     hydration, store, child, cur_depth + 1, max_depth,
@@ -59,9 +58,8 @@ async def _enumerate_descendants(
         else:
             if return_pages:
                 collected.append((child, seed))
-                # Undo: re-enable synonym SPARQL (4 calls per article).
-                # if not store.is_synonyms_hydrated(child):
-                #     await hydration.hydrate_synonyms(child, budget)
+                if not store.is_synonyms_hydrated(child):
+                    await hydration.hydrate_synonyms(child, budget)
 
 
 def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[str, str]]:
@@ -137,11 +135,10 @@ async def run_dig(
         else:
             matched_legacy.update(child for child, _seed in collected)
 
-    all_uris = matched_legacy if not fixed else {child for child, _seed in matched_fixed}
-    # Undo: re-enable post-pass synonym hydration for collected URIs.
-    # for uri in all_uris:
-    #     if not store.is_synonyms_hydrated(uri):
-    #         await hydration.hydrate_synonyms(uri, budget)
+    all_uris = matched_legacy if not fixed else {child for child, _seed in matched_fixed}  
+    for uri in all_uris:
+        if not store.is_synonyms_hydrated(uri):
+            await hydration.hydrate_synonyms(uri, budget)
 
     if budget.exhausted:
         logger.warning(

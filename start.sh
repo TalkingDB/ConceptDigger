@@ -20,7 +20,7 @@ MSYS_NO_PATHCONV=1 docker run -d \
   -p "${PORT}:5007" \
   -v "$(pwd)/data:/app/data" \
   -e SPARQL_ENDPOINT="${SPARQL_ENDPOINT}" \
-  -e CACHE_FILE_PATH="data/wiki_data.json" \
+  -e CACHE_FILE_PATH="data/graph_cache.json" \
   "$IMAGE_NAME"
 
 echo "ConceptDigger is running at http://localhost:${PORT}"

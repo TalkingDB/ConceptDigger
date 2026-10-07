@@ -7,7 +7,7 @@ services:
       - ./app:/app/app
       - ./data:/app/data
     environment:
-      - CACHE_FILE_PATH=data/wiki_data.json
+      - CACHE_FILE_PATH=data/graph_cache.json
     command:
       - uvicorn
       - app.main:app
