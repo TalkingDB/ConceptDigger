@@ -13,7 +13,7 @@ into an unbounded live-SPARQL crawl either.
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from ..category import require_category, require_max_depth
+from ..category import require_category, require_max_depth, require_resource
 from ..config import settings
 from ..hydration import SparqlBudget
 
@@ -26,7 +26,10 @@ class HydrateCategoryRequest(BaseModel):
 
 
 class HydrateSynonymsRequest(BaseModel):
-    entity: str
+    entity: str = Field(
+        ...,
+        description="DBpedia/Wikipedia URL or local name of one category or article.",
+    )
 
 
 @router.post("/hydrate-category")
@@ -67,10 +70,11 @@ async def hydrate_category(body: HydrateCategoryRequest, request: Request):
 @router.post("/hydrate-synonyms")
 async def hydrate_synonyms(body: HydrateSynonymsRequest, request: Request):
     hydration = request.app.state.hydration
+    entity = require_resource(body.entity)
     budget = SparqlBudget(settings.max_sparql_calls_per_request)
-    added = await hydration.hydrate_synonyms(body.entity, budget)
+    added = await hydration.hydrate_synonyms(entity, budget)
     return {
-        "entity": body.entity,
+        "entity": entity,
         "synonyms_added": added,
         "sparql_calls_used": budget.used,
         "budget_exhausted": budget.exhausted,

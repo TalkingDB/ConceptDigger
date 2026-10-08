@@ -1,16 +1,13 @@
 # Test records
 
-This directory stores **run artifacts** produced by `pytest`. Golden expected
-responses live in `tests/test_data/golden/` and are committed.
-
-Each local or CI run writes:
+Output of the **most recent** `pytest` run only. Nothing from earlier runs is
+kept: at the start of every run the previous `report.html`, `junit.xml`,
+`summary.json` and any legacy `history/` folder are deleted.
 
 | File | Contents |
 |---|---|
-| `junit.xml` | JUnit report (GitHub Actions / other CI) |
-| `report.html` | Self-contained HTML report (`pytest-html`) |
-| `summary.json` | Latest JSON summary of every test outcome |
-| `history/summary-*.json` | Timestamped copies of `summary.json` |
+| `report.html` | Self-contained HTML report (`pytest-html`): run overview, outcome types, per-test input / SPARQL queries / expected vs. actual, and "How to Reproduce These Tests" |
+| `junit.xml` | JUnit report for CI |
+| `summary.json` | JSON summary of every test with its outcome type |
 
-These generated files are gitignored. On GitHub Actions they are uploaded as
-the `test-records` artifact.
+Generated files are git-ignored. Expected data lives in `tests/debug_data/`.

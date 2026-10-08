@@ -169,7 +169,7 @@ All settings are environment variables.
 | `SPARQL_ENDPOINT` | `https://dbpedia.org/sparql` | Endpoint for all queries. Point it at a self-hosted Virtuoso instance if you have one |
 | `MAX_DEPTH_HARD_CAP` | `6` | Highest `max_depth` a request may use |
 | `MAX_SPARQL_CALLS_PER_REQUEST` | `10000` | SPARQL calls one request may make. After that, hydration stops and the header above is set |
-| `SPARQL_TIMEOUT_SECONDS` | `15` | Read timeout per SPARQL call |
+| `SPARQL_TIMEOUT_SECONDS` | `20` | Read timeout per SPARQL call |
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
