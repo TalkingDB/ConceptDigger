@@ -144,14 +144,9 @@ class HydrationService:
             )
             return True
 
-        try:
-            exists = await self.sparql_client.ask_category_exists(self.http_client, local_name)
-        except SparqlTransientError as exc:
-            logger.warning(
-                "SPARQL exists-check failed: node=%s err=%s — proceeding so structure hydration can retry",
-                local_name, exc,
-            )
-            return True
+        # An exists-check cannot be skipped: if SPARQL is down here, /dig
+        # must 502 rather than pretend the category exists.
+        exists = await self.sparql_client.ask_category_exists(self.http_client, local_name)
         budget.spend(1)
         return exists
 

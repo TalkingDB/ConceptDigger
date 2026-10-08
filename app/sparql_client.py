@@ -30,8 +30,9 @@ from .config import settings
 
 # HTTP statuses worth retrying after a backoff — 429 (rate limited) and 503
 # (endpoint temporarily overloaded), matching DBpedia's own operational
-# guidance for its public SPARQL endpoint.
-_RETRYABLE_STATUSES = {405, 429, 502, 503, 504}
+# guidance for its public SPARQL endpoint. 405 is not in this set: it is
+# retried once as GET (some front proxies reject POST).
+_RETRYABLE_STATUSES = {429, 502, 503, 504}
 # Timeouts get one extra attempt; 429/5xx keep SPARQL_MAX_RETRIES.
 _TIMEOUT_RETRIES = 1
 _RETRYABLE_EXCEPTIONS = (
@@ -107,24 +108,35 @@ class SparqlClient:
     async def _execute(self, client: httpx.AsyncClient, query: str) -> dict:
         """Shared retry/throttle loop. Returns the raw decoded JSON payload;
         callers pull out either `results.bindings` (SELECT) or `boolean`
-        (ASK). Timeouts and 405/429/502/503/504 are retried, then raised as
+        (ASK). Timeouts and 429/502/503/504 are retried, then raised as
         SparqlTransientError so /dig can skip this lookup instead of 500ing.
         A 405 from the public endpoint's front proxy is retried once as a GET.
         """
         last_error: Exception | None = None
         attempt = 0
+        use_get = False
+        payload = {
+            "query": _PREFIXES + query,
+            "format": "application/sparql-results+json",
+        }
+        headers = {"Accept": "application/sparql-results+json"}
         while True:
             await self._throttle()
             try:
-                resp = await client.post(
-                    self.endpoint,
-                    data={
-                        "query": _PREFIXES + query,
-                        "format": "application/sparql-results+json",
-                    },
-                    headers={"Accept": "application/sparql-results+json"},
-                    timeout=self._timeout(),
-                )
+                if use_get:
+                    resp = await client.get(
+                        self.endpoint,
+                        params=payload,
+                        headers=headers,
+                        timeout=self._timeout(),
+                    )
+                else:
+                    resp = await client.post(
+                        self.endpoint,
+                        data=payload,
+                        headers=headers,
+                        timeout=self._timeout(),
+                    )
             except _RETRYABLE_EXCEPTIONS as exc:
                 last_error = exc
                 retry_limit = _TIMEOUT_RETRIES if isinstance(exc, httpx.TimeoutException) else self.max_retries
@@ -134,6 +146,10 @@ class SparqlClient:
                     ) from exc
                 attempt += 1
                 await self._backoff(attempt)
+                continue
+
+            if resp.status_code == 405 and not use_get:
+                use_get = True
                 continue
 
             if resp.status_code in _RETRYABLE_STATUSES and attempt < self.max_retries:
