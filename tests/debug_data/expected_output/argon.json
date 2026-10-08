@@ -1,0 +1,33 @@
+{
+  "_comment": "Article Argon. 'a' is A_(disambiguation) after the ' (disambiguation)' suffix is stripped. 'ar' is the disambiguation source AR. Argon_(disambiguation) collapses to the label 'argon'.",
+  "status_code": 200,
+  "min_distinct_entities": 1,
+  "must_include_records": [
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "argon",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "argon gas",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "element 18",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "ar",
+      "how_this_record": "disambiguation"
+    },
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "a",
+      "how_this_record": "disambiguation"
+    }
+  ],
+  "must_not_include_entities": []
+}

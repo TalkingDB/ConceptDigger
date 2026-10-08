@@ -1,0 +1,28 @@
+{
+  "_comment": "Article Mercury_(planet). The parenthesised title stays in the label. dbp:name 'Mercury' is stored as alt_name 'mercury'. The disambiguation page Mercury produces the same text, so it does not add a second row. Redirect titles become lower-case surface text.",
+  "status_code": 200,
+  "min_distinct_entities": 1,
+  "must_include_records": [
+    {
+      "entity_url": "DBPedia>Mercury_(planet)",
+      "surface_text": "mercury (planet)",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Mercury_(planet)",
+      "surface_text": "mercury",
+      "how_this_record": "alt_name"
+    },
+    {
+      "entity_url": "DBPedia>Mercury_(planet)",
+      "surface_text": "first planet",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Mercury_(planet)",
+      "surface_text": "planet mercury",
+      "how_this_record": "redirect"
+    }
+  ],
+  "must_not_include_entities": []
+}

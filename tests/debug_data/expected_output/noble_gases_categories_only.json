@@ -1,0 +1,7 @@
+{
+  "_comment": "return_pages=false: at least one sub-category is returned and NO article (non 'Category:') entity may appear. The 'only categories' rule itself is checked generically from the request flags.",
+  "status_code": 200,
+  "min_distinct_entities": 1,
+  "must_include_records": [],
+  "must_not_include_entities": []
+}

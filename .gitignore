@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+tests/records/junit.xml
+tests/records/report.html
+tests/records/summary.json
+tests/records/assets/
+tests/records/history/

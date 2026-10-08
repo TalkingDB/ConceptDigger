@@ -1,0 +1,53 @@
+{
+  "_comment": "Anchors from a live dig: the six noble-gas articles (rdfs:label), plus one alternate name, one redirect and one disambiguation synonym. These are not a full snapshot of every synonym DBpedia returns.",
+  "status_code": 200,
+  "min_distinct_entities": 6,
+  "must_include_records": [
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "helium",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Neon",
+      "surface_text": "neon",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Argon",
+      "surface_text": "argon",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Krypton",
+      "surface_text": "krypton",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Xenon",
+      "surface_text": "xenon",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Radon",
+      "surface_text": "radon",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>William_Ramsay",
+      "surface_text": "the gases of the atmosphere",
+      "how_this_record": "alt_name"
+    },
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "element 2",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "he",
+      "how_this_record": "disambiguation"
+    }
+  ],
+  "must_not_include_entities": []
+}
