@@ -1,0 +1,31 @@
+{
+    "name": "ConceptDigger Dev Environment",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "runArgs": [
+        "--env-file", "${localWorkspaceFolder}/.env"
+    ],
+    "initializeCommand": "test -f ${localWorkspaceFolder}/.env || cp ${localWorkspaceFolder}/.env.example ${localWorkspaceFolder}/.env",
+    "containerEnv": {
+        "PORT": "5007",
+        "SPARQL_ENDPOINT": "https://dbpedia.org/sparql",
+        "CACHE_FILE_PATH": "data/graph_cache.json"
+    },
+    "forwardPorts": [
+        5007
+    ],
+    "mounts": [
+        "source=${localWorkspaceFolder}/data,target=/app/data,type=bind"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance"
+            ]
+        }
+    },
+    "postCreateCommand": "apt-get update && apt-get install -y git && mkdir -p data",
+    "postStartCommand": "nohup uvicorn app.main:app --host 0.0.0.0 --port 5007 --reload > uvicorn.log 2>&1 &"
+}
