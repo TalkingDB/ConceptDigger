@@ -1,0 +1,28 @@
+{
+  "_comment": "Article Helium. Label comes from the resource name. Redirects are other Wikipedia page titles that point at Helium. 'he' is the disambiguation source He; Helium_(disambiguation) collapses to 'helium' and is not a separate row.",
+  "status_code": 200,
+  "min_distinct_entities": 1,
+  "must_include_records": [
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "helium",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "element 2",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "helium gas",
+      "how_this_record": "redirect"
+    },
+    {
+      "entity_url": "DBPedia>Helium",
+      "surface_text": "he",
+      "how_this_record": "disambiguation"
+    }
+  ],
+  "must_not_include_entities": []
+}
