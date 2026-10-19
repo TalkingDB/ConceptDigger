@@ -1,0 +1,50 @@
+{
+  "_readme": "Input data for the live ConceptDigger tests. 'kind' is 'category' (dig a Wikipedia category) or 'article' (hydrate one article and check its label, alternate names, redirects and disambiguation text). To add a test: append an entry here AND create debug_data/expected_output/<id>.json. To remove one: delete both. 'id' must be unique and filename-safe. Keep category cases small (max_depth 0). Article cases cost 4 live SPARQL calls each.",
+  "cases": [
+    {
+      "id": "noble_gases",
+      "kind": "category",
+      "url": "https://en.wikipedia.org/wiki/Category:Noble_gases",
+      "max_depth": 0,
+      "return_categories": true,
+      "return_pages": true,
+      "description": "Categories and member articles, including label, alternate-name, redirect and disambiguation synonyms."
+    },
+    {
+      "id": "noble_gases_categories_only",
+      "kind": "category",
+      "url": "https://en.wikipedia.org/wiki/Category:Noble_gases",
+      "max_depth": 0,
+      "return_categories": true,
+      "return_pages": false,
+      "description": "Same category with return_pages=false: only sub-categories may appear in the output."
+    },
+    {
+      "id": "nonexistent_category",
+      "kind": "category",
+      "url": "https://en.wikipedia.org/wiki/Category:ConceptDigger_Test_Category_That_Does_Not_Exist_7f3a9c",
+      "max_depth": 0,
+      "return_categories": true,
+      "return_pages": true,
+      "description": "Negative case: a category that does not exist must produce HTTP 404 'Category not found' (one live ASK query)."
+    },
+    {
+      "id": "helium",
+      "kind": "article",
+      "url": "https://en.wikipedia.org/wiki/Helium",
+      "description": "Article input. Checks the English label, redirect surface text (element 2, helium gas) and disambiguation text (he)."
+    },
+    {
+      "id": "argon",
+      "kind": "article",
+      "url": "https://en.wikipedia.org/wiki/Argon",
+      "description": "Article input. Checks redirects (argon gas, element 18) and disambiguation text, including the stripped '(disambiguation)' suffix (a, ar)."
+    },
+    {
+      "id": "mercury_planet",
+      "kind": "article",
+      "url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
+      "description": "Article input with a parenthesised title. Checks the label, the alternate name 'mercury', and redirect surface text."
+    }
+  ]
+}
