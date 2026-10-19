@@ -10,3 +10,14 @@ tests/records/report.html
 tests/records/summary.json
 tests/records/assets/
 tests/records/history/
+
+# local environment variables
+.env
+.env.*
+
+# local application data
+data/
+
+# application logs
+uvicorn.log
+*.log
