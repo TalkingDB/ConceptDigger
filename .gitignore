@@ -19,5 +19,4 @@ tests/records/history/
 data/
 
 # application logs
-uvicorn.log
 *.log

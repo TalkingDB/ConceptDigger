@@ -6,7 +6,7 @@
     "runArgs": [
         "--env-file", "${localWorkspaceFolder}/.env"
     ],
-    "initializeCommand": "test -f ${localWorkspaceFolder}/.env || cp ${localWorkspaceFolder}/.env.example ${localWorkspaceFolder}/.env",
+    "initializeCommand": "test -f \"${localWorkspaceFolder}/.env\" || cp \"${localWorkspaceFolder}/.env.example\" \"${localWorkspaceFolder}/.env\"",
     "containerEnv": {
         "PORT": "5007",
         "SPARQL_ENDPOINT": "https://dbpedia.org/sparql",
@@ -14,9 +14,6 @@
     },
     "forwardPorts": [
         5007
-    ],
-    "mounts": [
-        "source=${localWorkspaceFolder}/data,target=/app/data,type=bind"
     ],
     "customizations": {
         "vscode": {
@@ -26,6 +23,6 @@
             ]
         }
     },
-    "postCreateCommand": "apt-get update && apt-get install -y git && pip install gdown && bash .devcontainer/fetch_graph_cache.sh",
+    "postCreateCommand": "apt-get update && apt-get install -y git && pip install --no-cache-dir gdown==5.2.0 pytest pytest-asyncio pytest-html && bash .devcontainer/fetch_graph_cache.sh",
     "postStartCommand": "nohup uvicorn app.main:app --host 0.0.0.0 --port 5007 --reload > uvicorn.log 2>&1 &"
 }
