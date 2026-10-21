@@ -20,16 +20,10 @@ MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
 Response body: a JSON array of
 {entity_url, surface_text, seed_category, how_this_record} objects.
-
-If the per-request SPARQL call budget (MAX_SPARQL_CALLS_PER_REQUEST) is
-exhausted before every branch could be fully explored/enriched, the response
-still contains whatever was hydrated (this call or previously cached) and an
-`X-SPARQL-Budget-Exhausted: true` header is set — the body stays a plain
-JSON array either way.
 """
 from typing import List
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
@@ -70,10 +64,10 @@ class DigRequest(BaseModel):
 
 
 @router.post("/dig")
-async def dig(body: DigRequest, request: Request, response: Response):
+async def dig(body: DigRequest, request: Request):
     store = request.app.state.store
     hydration = request.app.state.hydration
-    budget = SparqlBudget(settings.max_sparql_calls_per_request)
+    budget = SparqlBudget()
 
     max_depth = require_max_depth(body.max_depth)
     items = [
@@ -86,7 +80,4 @@ async def dig(body: DigRequest, request: Request, response: Response):
         for category in body.categories
     ]
 
-    result = await run_dig(hydration, store, items, budget, fixed=True)
-    if budget.exhausted:
-        response.headers["X-SPARQL-Budget-Exhausted"] = "true"
-    return result
+    return await run_dig(hydration, store, items, budget, fixed=True)

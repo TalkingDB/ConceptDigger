@@ -22,12 +22,6 @@ class Settings:
     # single /dig call can't fan out into an unbounded live-SPARQL crawl.
     max_depth_hard_cap: int = int(os.getenv("MAX_DEPTH_HARD_CAP", "6"))
 
-    # Total number of live SPARQL calls a single HTTP request is allowed to
-    # spend across every seed in its batch (structure + synonym hydration
-    # combined). Once exhausted, traversal/enrichment stops gracefully and
-    # whatever was already hydrated (this call or a previous one) is returned.
-    max_sparql_calls_per_request: int = int(os.getenv("MAX_SPARQL_CALLS_PER_REQUEST", "10000"))
-
     # Per-SPARQL-call HTTP read timeout. Public DBpedia often exceeds this on
     # reverse lookups (redirects/disambiguations); those are retried once then
     # skipped so /dig can continue.

@@ -84,7 +84,7 @@ and the `return_categories` / `return_pages` flags.
 | File | Purpose |
 |---|---|
 | `test_live_dig.py` | One live test per input case + the time-budget test |
-| `test_live_endpoints.py` | Live: call budget header, categories-only digging, hydrate -> graph data -> health |
+| `test_live_endpoints.py` | Live: categories-only digging, hydrate -> graph data -> health |
 | `test_api_validation.py` | Offline: request validation (SPARQL access fails the test) |
 | `test_category.py`, `test_sparql_resilience.py` | Offline unit tests (URL parsing, retry logic) |
 | `test_debug_data_integrity.py` | Offline: input/expected data consistency |

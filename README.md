@@ -113,9 +113,6 @@ Status codes:
 | `404` | A seed category does not exist in DBpedia |
 | `502` | The SPARQL endpoint was unavailable for a call that could not be skipped |
 
-If the per-request SPARQL budget runs out, the response still contains
-everything hydrated so far and carries the header
-`X-SPARQL-Budget-Exhausted: true`.
 
 ### `POST /api/v1/hydrate-category`
 
@@ -126,8 +123,8 @@ returning anything.
 { "category": "Category:Birds", "max_depth": 2 }
 ```
 
-Returns `category`, `max_depth`, `new_nodes`, `new_edges`,
-`sparql_calls_used` and `budget_exhausted`.
+Returns `category`, `max_depth`, `new_nodes`, `new_edges`
+and `sparql_calls_used`.
 
 ### `POST /api/v1/hydrate-synonyms`
 
@@ -137,7 +134,7 @@ Pre-warms the synonyms of one category or article.
 { "entity": "Category:Birds" }
 ```
 
-Returns `entity`, `synonyms_added`, `sparql_calls_used` and `budget_exhausted`.
+Returns `entity`, `synonyms_added` and `sparql_calls_used`.
 
 ### `GET /api/v1/graph?root=Category:Birds&depth=6`
 
@@ -168,7 +165,6 @@ All settings are environment variables.
 |---|---|---|
 | `SPARQL_ENDPOINT` | `https://dbpedia.org/sparql` | Endpoint for all queries. Point it at a self-hosted Virtuoso instance if you have one |
 | `MAX_DEPTH_HARD_CAP` | `6` | Highest `max_depth` a request may use |
-| `MAX_SPARQL_CALLS_PER_REQUEST` | `10000` | SPARQL calls one request may make. After that, hydration stops and the header above is set |
 | `SPARQL_TIMEOUT_SECONDS` | `20` | Read timeout per SPARQL call |
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
@@ -219,7 +215,7 @@ are served from the cache.
 
 - **Throttling and retries** - calls are spaced out and retried with backoff on
   429/502/503/504 (honouring `Retry-After`, capped at 30 s).
-- **Call budget** - one request cannot trigger an unbounded crawl.
+- **Call counting** - each request logs how many SPARQL calls it made. `MAX_DEPTH_HARD_CAP` is the only bound on a dig.
 - **Skip-and-continue** - if a single lookup keeps failing, it is skipped, the
   node stays un-hydrated so it is retried next time, and the dig continues.
 - **De-duplicated hydration** - concurrent requests for the same node share one
@@ -237,7 +233,7 @@ app/
   config.py          Environment-driven settings
   category.py        Input normalization and validation
   dig.py             Traversal and output building for /dig
-  hydration.py       SPARQL budget and hydration of structure and synonyms
+  hydration.py       SPARQL call counter and hydration of structure and synonyms
   sparql_client.py   Async SPARQL client with throttling and retries
   graph_store.py     In-memory graph, JSON cache, de-duplication
   utils.py           Label conversion and name safety checks
@@ -289,7 +285,7 @@ updated to the new request and response format.
 - Runs as a single worker. Several workers would each keep their own graph; a
   shared store such as Redis would be needed to scale out.
 - If lookups are skipped after repeated failures, the response is not flagged
-  as incomplete (only budget exhaustion sets a header).
+  as incomplete.
 - The public DBpedia endpoint can be slow or rate-limited; a self-hosted
   endpoint is recommended for heavy use.
 - No authentication.

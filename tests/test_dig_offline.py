@@ -1,18 +1,15 @@
 """
-Offline /dig regressions that used to live in the mocked API suite:
-per-request SPARQL budget exhaustion, and a SPARQL outage on the
-exists-check (the one lookup /dig cannot skip).
+Offline /dig and /hydrate regressions: SPARQL call counting (there is no
+per-request limit), and a SPARQL outage on the exists-check (the one lookup
+/dig cannot skip).
 """
 import copy
-from dataclasses import replace
-from unittest.mock import patch
 
 import httpx
 import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.config import settings
 from app.graph_store import GraphStore
 from app.hydration import HydrationService
 from app.main import app
@@ -77,16 +74,23 @@ async def stub_api(tmp_path, request):
 
 
 @pytest.mark.parametrize("stub_api", [StubSparqlClient(exists=True)], indirect=True)
-async def test_dig_sets_budget_exhausted_header(stub_api):
-    tight = replace(settings, max_sparql_calls_per_request=1)
-    with patch("app.routers.dig.settings", tight), patch("app.dig.settings", tight):
-        response = await stub_api.post(
-            "/api/v1/dig",
-            json={"categories": [CATEGORY], "max_depth": 1},
-        )
+async def test_dig_has_no_budget_header(stub_api):
+    response = await stub_api.post(
+        "/api/v1/dig",
+        json={"categories": [CATEGORY], "max_depth": 1},
+    )
     assert response.status_code == 200
-    assert response.headers.get("x-sparql-budget-exhausted") == "true"
-    assert response.json() == []
+    assert "x-sparql-budget-exhausted" not in response.headers
+
+
+@pytest.mark.parametrize("stub_api", [StubSparqlClient(exists=True)], indirect=True)
+async def test_hydrate_synonyms_reports_calls_used(stub_api):
+    response = await stub_api.post("/api/v1/hydrate-synonyms", json={"entity": "Helium"})
+    assert response.status_code == 200
+    body = response.json()
+    # labels, alt names, redirects, disambiguations
+    assert body["sparql_calls_used"] == 4
+    assert "budget_exhausted" not in body
 
 
 @pytest.mark.parametrize(
