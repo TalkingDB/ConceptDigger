@@ -68,8 +68,6 @@ def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[st
             output.append({
                 "entity_url": f"DBPedia>{uri}",
                 "surface_text": text,
-                # Bug preserved on purpose: this is the matched node's own
-                # name, not the seed category that was actually dug.
                 "seed_category": uri,
                 "how_this_record": source,
             })
