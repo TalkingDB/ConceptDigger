@@ -13,7 +13,6 @@ tests/records/history/
 
 # local environment variables
 .env
-.env.*
 
 # local application data
 data/
