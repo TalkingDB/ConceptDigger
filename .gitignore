@@ -10,3 +10,12 @@ tests/records/report.html
 tests/records/summary.json
 tests/records/assets/
 tests/records/history/
+
+# local environment variables
+.env
+
+# local application data
+data/
+
+# application logs
+*.log
