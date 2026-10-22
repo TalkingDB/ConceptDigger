@@ -1,0 +1,7 @@
+services:
+  conceptdigger:
+    env_file:
+      - .env
+    volumes:
+      - .:/app:cached
+    command: sleep infinity

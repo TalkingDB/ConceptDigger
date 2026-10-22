@@ -8,6 +8,10 @@ services:
       - ./data:/app/data
     environment:
       - CACHE_FILE_PATH=data/graph_cache.json
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
     command:
       - uvicorn
       - app.main:app
@@ -18,3 +22,32 @@ services:
       - --reload
       - --reload-dir
       - app
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.ml.enabled=false
+      - cluster.name=concept-digger-es
+      - network.host=0.0.0.0
+      - http.port=9200
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200"]
+      interval: 60s
+      timeout: 5s
+      retries: 30
+      start_period: 45s
+
+volumes:
+  elasticsearch-data:
