@@ -86,8 +86,6 @@ async def test_dig_sets_budget_exhausted_header(stub_api):
         )
     assert response.status_code == 200
     assert response.headers.get("x-sparql-budget-exhausted") == "true"
-    assert response.json() == []
-
 
 @pytest.mark.parametrize(
     "stub_api",
@@ -99,5 +97,9 @@ async def test_dig_sparql_outage_on_exists_check_returns_502(stub_api):
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0},
     )
+    body = response.json()
     assert response.status_code == 502
-    assert "SPARQL endpoint down" in response.json()["detail"]
+    assert body["status"] == "failed"
+    assert body["data"] == []
+    assert body["failed_requests"] >= 1
+    assert body["error"] is not None

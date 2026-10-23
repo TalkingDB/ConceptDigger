@@ -38,26 +38,13 @@ async def test_live_budget_exhausted_header(live_stack, sparql_probe, request):
         resp, exc, net = await attempt(live_stack.api.post("/api/v1/dig", json=body))
     checks = []
     if resp is not None:
-        checks = [
-            Check("HTTP status 200", resp.status_code == 200, f"actual {resp.status_code}"),
-            Check("X-SPARQL-Budget-Exhausted header is 'true'",
-                  resp.headers.get("x-sparql-budget-exhausted") == "true",
-                  f"actual {resp.headers.get('x-sparql-budget-exhausted')!r}"),
-            Check("body is an empty JSON array (no budget left to hydrate)", resp.json() == [],
-                  f"actual {str(resp.json())[:120]}"),
-        ]
-    verdict = conclude(probe=sparql_probe, calls=live_stack.recorder.calls, checks=checks,
-                       exception_text=exc, network_exception=net,
-                       status_code=resp.status_code if resp is not None else None)
-    _view(request, "Per-request SPARQL budget (MAX_SPARQL_CALLS_PER_REQUEST=1)",
-          [("Wikipedia category URL", case.url), ("MAX_SPARQL_CALLS_PER_REQUEST (patched)", "1")],
-          "POST /api/v1/dig", body,
-          {"status_code": 200, "header X-SPARQL-Budget-Exhausted": "true", "body": []},
-          resp.json() if resp is not None else None, verdict, checks, live_stack.recorder.calls,
-          status=resp.status_code if resp is not None else None,
-          headers={k: v for k, v in resp.headers.items() if k.startswith("x-sparql")} if resp is not None else {},
-          exc=exc)
-    raise_for_verdict(verdict)
+        body = resp.json()
+        assert resp.status_code == 200
+        assert resp.headers["x-sparql-budget-exhausted"] == "true"
+        assert body["data"] == []
+        assert body["status"] == "complete"
+        assert body["failed_requests"] == 0
+        assert body["error"] is None
 
 
 async def test_live_dig_categories_only_returns_only_categories(live_stack, sparql_probe, request):
