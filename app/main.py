@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 logging.getLogger("app").setLevel(logging.INFO)
@@ -22,9 +23,11 @@ if not logging.getLogger("app").handlers:
 
 
 from .config import settings
+from .export import list_export_files
 from .graph_store import GraphStore
 from .hydration import HydrationService
-from .routers import dig, health, hydrate, graph, graph_data
+from .routers import dig, health, hydrate, graph, graph_data, synonyms
+from .routers.synonyms import patch_openapi_file_enum
 from .sparql_client import SparqlTransientError, sparql_client
 
 
@@ -57,6 +60,31 @@ app.include_router(hydrate.router)
 app.include_router(health.router)
 app.include_router(graph.router)
 app.include_router(graph_data.router)
+app.include_router(synonyms.router)
+
+
+def export_names_for_docs() -> list[str]:
+    """File names for the Swagger dropdown. Newest first, from the running store."""
+    store = getattr(app.state, "store", None)
+    if store is None:
+        return []
+    return list_export_files(store)
+
+
+def custom_openapi():
+    # Rebuilt on each fetch so the file_name dropdown includes exports written
+    # after the process started.
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    patch_openapi_file_enum(schema, export_names_for_docs())
+    return schema
+
+
+app.openapi = custom_openapi
 
 
 @app.exception_handler(SparqlTransientError)

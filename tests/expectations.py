@@ -28,7 +28,8 @@ from tests.live_harness import (
 )
 
 ALLOWED_SOURCES = {"rdfs:label", "alt_name", "redirect", "disambiguation"}
-RECORD_KEYS = {"entity_url", "surface_text", "seed_category", "how_this_record"}
+DOCUMENT_KEYS = {"entity_url", "entity", "surface_text", "seed_category"}
+SURFACE_FORM_KEYS = {"text", "how_this_record"}
 CATEGORY_PREFIX = "DBPedia>Category:"
 
 PASS = "pass"
@@ -52,6 +53,24 @@ class Verdict:
     @property
     def passed(self) -> bool:
         return self.kind == PASS
+
+
+def flatten_documents(body: Any) -> list[dict] | None:
+    """Expand /dig documents into one flat row per surface form, the shape the
+    stored expected output and the HTML report compare against."""
+    if not isinstance(body, list) or not all(isinstance(d, dict) for d in body):
+        return None
+    return [
+        {
+            "entity_url": d.get("entity_url"),
+            "surface_text": sf.get("text"),
+            "how_this_record": sf.get("how_this_record"),
+            "seed_category": d.get("seed_category"),
+        }
+        for d in body
+        for sf in d.get("surface_text") or []
+        if isinstance(sf, dict)
+    ]
 
 
 def _rec_key(r: dict) -> tuple:
@@ -83,12 +102,25 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
     if not isinstance(body, list):
         checks.append(Check("response is a JSON array", False, f"actual: {type(body).__name__}"))
         return checks
-    checks.append(Check("response is a JSON array", True, f"{len(body)} record(s)"))
+    checks.append(Check("response is a JSON array", True, f"{len(body)} document(s)"))
 
-    bad_shape = [r for r in body if not isinstance(r, dict) or set(r) != RECORD_KEYS]
-    checks.append(Check("every record has exactly the 4 documented fields", not bad_shape,
-                        f"{len(bad_shape)} malformed record(s)" if bad_shape else ""))
-    records = [r for r in body if isinstance(r, dict)]
+    bad_shape = [d for d in body if not isinstance(d, dict) or set(d) != DOCUMENT_KEYS]
+    checks.append(Check("every document has exactly the 4 documented fields", not bad_shape,
+                        f"{len(bad_shape)} malformed document(s)" if bad_shape else ""))
+    docs = [d for d in body if isinstance(d, dict)]
+
+    bad = [d for d in docs if d.get("entity_url") != f"DBPedia>{d.get('entity')}"]
+    checks.append(Check("entity_url is 'DBPedia>' + entity", not bad, f"{len(bad)} violation(s)" if bad else ""))
+
+    bad = [d for d in docs if not isinstance(d.get("surface_text"), list) or not d["surface_text"]
+           or any(not isinstance(sf, dict) or set(sf) != SURFACE_FORM_KEYS for sf in d["surface_text"])]
+    checks.append(Check("surface_text is a non-empty list of {text, how_this_record}", not bad,
+                        f"{len(bad)} malformed document(s)" if bad else ""))
+
+    keys = [(d.get("entity"), d.get("seed_category")) for d in docs]
+    checks.append(Check("one document per (entity, seed_category)", len(keys) == len(set(keys)),
+                        f"{len(keys) - len(set(keys))} duplicate(s)" if len(keys) != len(set(keys)) else ""))
+    records = flatten_documents(docs) or []
 
     bad = [r for r in records if not str(r.get("entity_url", "")).startswith("DBPedia>")]
     checks.append(Check("entity_url starts with 'DBPedia>'", not bad, f"{len(bad)} violation(s)" if bad else ""))
@@ -98,15 +130,15 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
                         f"unexpected: {sorted({str(r.get('how_this_record')) for r in bad})}" if bad else ""))
 
     bad = [r for r in records if r.get("surface_text") != str(r.get("surface_text", "")).lower()]
-    checks.append(Check("surface_text is lower-case", not bad, f"{len(bad)} violation(s)" if bad else ""))
+    checks.append(Check("surface form text is lower-case", not bad, f"{len(bad)} violation(s)" if bad else ""))
 
     seed = case.local_name
     what = "article" if case.kind == "article" else "dug category"
-    bad = [r for r in records if r.get("seed_category") != seed]
+    bad = [d for d in docs if d.get("seed_category") != seed]
     checks.append(Check(f"seed_category is the {what} ({seed})", not bad,
-                        f"{len(bad)} record(s) attribute another seed" if bad else ""))
+                        f"{len(bad)} document(s) attribute another seed" if bad else ""))
 
-    entities = {r.get("entity_url", "") for r in records}
+    entities = {d.get("entity_url", "") for d in docs}
     if case.kind == "category" and not case.return_categories:
         bad = sorted(e for e in entities if e.startswith(CATEGORY_PREFIX))
         checks.append(Check("return_categories=false: no Category: entities", not bad, f"found: {bad[:5]}" if bad else ""))

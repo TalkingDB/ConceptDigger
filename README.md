@@ -23,7 +23,7 @@ on demand and caches what it learns.
 5. **Hydrate synonyms** - for every collected node, four SPARQL calls fetch
    labels (`rdfs:label`), alternate names (`dbo:alias`, `dbp:name`,
    `dbp:alternateName`, `foaf:name`), redirects and disambiguations.
-6. **Respond** - one record per (node, synonym).
+6. **Respond** - one document per node, with its synonyms grouped together.
 
 The graph is saved to a JSON file after each hydration step, so a repeat dig
 over the same categories needs no SPARQL calls at all, and the cache survives
@@ -75,21 +75,21 @@ Accepted category formats:
 - `https://en.wikipedia.org/wiki/Category:Food_ingredients`
 - `Category:Food_ingredients` or `Category:Food ingredients`
 
-Response: a JSON array (abridged, illustrative):
+Response: a JSON array with one document per (entity, seed category), with
+all of the entity's synonyms grouped under `surface_text`. This is the shape
+loaded into Elasticsearch (abridged, illustrative):
 
 ```json
 [
   {
     "entity_url": "DBPedia>Category:Spices",
-    "surface_text": "spices",
-    "seed_category": "Category:Food_ingredients",
-    "how_this_record": "rdfs:label"
-  },
-  {
-    "entity_url": "DBPedia>Category:Spices",
-    "surface_text": "spice",
-    "seed_category": "Category:Food_ingredients",
-    "how_this_record": "redirect"
+    "entity": "spices",
+    "surface_text": [
+      { "text": "ben oil", "how_this_record": "rdfs:label" },
+      { "text": "behen oil", "how_this_record": "redirect" },
+      { "text": "oil of ben", "how_this_record": "redirect" }
+    ],
+    "seed_category": "Category:Food_ingredients"
   }
 ]
 ```
@@ -97,12 +97,15 @@ Response: a JSON array (abridged, illustrative):
 | Field | Meaning |
 |---|---|
 | `entity_url` | `DBPedia>` followed by the node's local name |
-| `surface_text` | A lowercase synonym for that node |
+| `entity` | The node's local name (`Ben_oil`, `Category:Spices`) |
+| `surface_text[].text` | A lowercase synonym for that node, unique within the document |
+| `surface_text[].how_this_record` | Where the synonym came from: `rdfs:label`, `alt_name`, `redirect` or `disambiguation` |
 | `seed_category` | The category you dug that led to this node |
-| `how_this_record` | Where the synonym came from: `rdfs:label`, `alt_name`, `redirect` or `disambiguation` |
 
 The array is not ordered. A node reachable from several seeds appears once per
-seed.
+seed. Nodes without any synonym are left out. The same documents are written to
+`data/exports/<Seed>_<timestamp>.json`, one file per seed; `POST /api/v1/export`
+writes that file from the cache alone.
 
 Status codes:
 

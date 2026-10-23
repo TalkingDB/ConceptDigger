@@ -5,7 +5,7 @@ Each test uses its own empty graph cache and the real endpoint.
 """
 import pytest
 
-from tests.expectations import CATEGORY_PREFIX, Check, conclude, dig_checks, raise_for_verdict
+from tests.expectations import CATEGORY_PREFIX, Check, conclude, dig_checks, flatten_documents, raise_for_verdict
 from tests.live_harness import CaseRun, attempt, get_case, load_expected
 from tests.reporting import LiveView, register_view
 
@@ -36,7 +36,7 @@ async def test_live_dig_categories_only_returns_only_categories(live_stack, spar
     checks = dig_checks(case, expected, run) if resp is not None else []
     verdict = conclude(probe=sparql_probe, calls=run.sparql_calls, checks=checks, exception_text=exc,
                        network_exception=net, status_code=run.status_code)
-    records = run.body if isinstance(run.body, list) else None
+    records = flatten_documents(run.body)
     register_view(request.node.nodeid, LiveView(
         title="return_pages=false returns only sub-categories (own cache, own run)",
         inputs=[("Wikipedia category URL", case.url), ("return_categories / return_pages", "True / False")],

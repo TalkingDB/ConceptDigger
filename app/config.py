@@ -44,6 +44,11 @@ class Settings:
     # a volume in production.
     cache_file_path: str = os.getenv("CACHE_FILE_PATH", "data/graph_cache.json")
 
+    # Where synonym exports are indexed. Compose points this at the elasticsearch
+    # service; a process on the host uses the published port.
+    elasticsearch_url: str = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
+    elasticsearch_index: str = os.getenv("ELASTICSEARCH_INDEX", "train-synonyms")
+
     port: int = int(os.getenv("PORT", "5007"))
 
 

@@ -18,9 +18,9 @@ batch (this is a change from the old per-item-tuple protocol, where each
 category could carry its own depth/flags). max_depth may not exceed
 MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
-Response body: a JSON array of
-{entity_url, surface_text, seed_category, how_this_record} objects. The same
-records are also written to data/exports/<Seed>_<timestamp>.json, one file per
+Response body: a JSON array with one document per (entity, seed category):
+{entity_url, entity, surface_text: [{text, how_this_record}], seed_category}
+— the shape loaded into Elasticsearch. The same documents are also written to data/exports/<Seed>_<timestamp>.json, one file per
 seed category.
 
 POST /api/v1/export reads only the cached graph (no SPARQL) and writes that

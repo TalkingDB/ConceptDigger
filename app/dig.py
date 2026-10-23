@@ -9,7 +9,7 @@ categories are being *returned*, since a category might still contain pages
 deeper down that should be returned.
 """
 import logging
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Set, Tuple
 from fastapi import HTTPException
 
 from .config import settings
@@ -61,29 +61,24 @@ async def _enumerate_descendants(
                     await hydration.hydrate_synonyms(child, budget)
 
 
-def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[str, str]]:
-    output = []
-    for uri in matched:
-        for text, source in store.synonyms(uri):
-            output.append({
-                "entity_url": f"DBPedia>{uri}",
-                "surface_text": text,
-                "seed_category": uri,
-                "how_this_record": source,
-            })
-    return output
-
-
-def _prepare_output_fixed(store: GraphStore, matched: Set[Tuple[str, str]]) -> List[Dict[str, str]]:
+def build_documents(store: GraphStore, matched: Iterable[Tuple[str, str]]) -> List[Dict[str, Any]]:
+    """One document per (entity, seed) with all of its synonyms grouped under
+    surface_text — the shape loaded into Elasticsearch. Entities without any
+    synonym are left out, as they have nothing to match on."""
     output = []
     for uri, seed in matched:
-        for text, source in store.synonyms(uri):
-            output.append({
-                "entity_url": f"DBPedia>{uri}",
-                "surface_text": text,
-                "seed_category": seed,
-                "how_this_record": source,
-            })
+        surface_text = [
+            {"text": text, "how_this_record": source}
+            for text, source in store.synonyms(uri)
+        ]
+        if not surface_text:
+            continue
+        output.append({
+            "entity_url": f"DBPedia>{uri}",
+            "entity": uri,
+            "surface_text": surface_text,
+            "seed_category": seed,
+        })
     return output
 
 
@@ -93,7 +88,7 @@ async def run_dig(
     items: List[DigItem],
     budget: SparqlBudget,
     fixed: bool,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     matched_legacy: Set[str] = set()
     matched_fixed: Set[Tuple[str, str]] = set()
 
@@ -143,5 +138,5 @@ async def run_dig(
     )
 
     if fixed:
-        return _prepare_output_fixed(store, matched_fixed)
-    return _prepare_output_legacy(store, matched_legacy)
+        return build_documents(store, matched_fixed)
+    return build_documents(store, ((uri, uri) for uri in matched_legacy))

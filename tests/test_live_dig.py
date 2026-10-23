@@ -17,7 +17,7 @@ live SPARQL call in flight at a time. No mocked SPARQL data is involved.
 """
 import pytest
 
-from tests.expectations import conclude, dig_checks, raise_for_verdict
+from tests.expectations import conclude, dig_checks, flatten_documents, raise_for_verdict
 from tests.live_harness import get_case, load_cases, load_expected
 from tests.reporting import LiveView, register_view
 
@@ -39,7 +39,7 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
         network_exception=run.network_exception,
         status_code=run.status_code,
     )
-    records = run.body if isinstance(run.body, list) and all(isinstance(r, dict) for r in run.body) else None
+    records = flatten_documents(run.body)
     register_view(
         request.node.nodeid,
         LiveView(

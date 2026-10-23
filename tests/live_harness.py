@@ -364,21 +364,22 @@ async def attempt(coro) -> tuple[Any, str | None, bool]:
 
 
 def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
-    """Turn one cached node's synonyms into the same record shape /dig returns."""
+    """Turn one cached node's synonyms into the same document shape /dig returns."""
     nodes = graph_body.get("nodes") if isinstance(graph_body, dict) else None
     node = next((n for n in nodes or [] if n.get("id") == local_name), None)
-    records = []
-    for pair in (node or {}).get("synonyms") or []:
-        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-            continue
-        text, source = pair
-        records.append({
-            "entity_url": f"DBPedia>{local_name}",
-            "surface_text": text,
-            "seed_category": local_name,
-            "how_this_record": source,
-        })
-    return records
+    surface_text = [
+        {"text": pair[0], "how_this_record": pair[1]}
+        for pair in (node or {}).get("synonyms") or []
+        if isinstance(pair, (list, tuple)) and len(pair) == 2
+    ]
+    if not surface_text:
+        return []
+    return [{
+        "entity_url": f"DBPedia>{local_name}",
+        "entity": local_name,
+        "surface_text": surface_text,
+        "seed_category": local_name,
+    }]
 
 
 async def _call_case(stack: LiveStack, case: Case, run: CaseRun) -> None:
