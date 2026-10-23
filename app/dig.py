@@ -38,9 +38,8 @@ async def _enumerate_descendants(
 
     children = store.children(node)
     logger.info(
-        "dig progress: %s depth=%s/%s children=%s collected=%s sparql=%s/%s",
-        node, cur_depth, max_depth, len(children), len(collected),
-        budget.used, budget.limit,
+        "dig progress: %s depth=%s/%s children=%s collected=%s sparql=%s",
+        node, cur_depth, max_depth, len(children), len(collected), budget.used,
     )
 
     for child in children:
@@ -68,9 +67,8 @@ def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[st
         for text, source in store.synonyms(uri):
             output.append({
                 "entity_url": f"DBPedia>{uri}",
+                "entity": uri,
                 "surface_text": text,
-                # Bug preserved on purpose: this is the matched node's own
-                # name, not the seed category that was actually dug.
                 "seed_category": uri,
                 "how_this_record": source,
             })
@@ -83,6 +81,7 @@ def _prepare_output_fixed(store: GraphStore, matched: Set[Tuple[str, str]]) -> L
         for text, source in store.synonyms(uri):
             output.append({
                 "entity_url": f"DBPedia>{uri}",
+                "entity": uri,
                 "surface_text": text,
                 "seed_category": seed,
                 "how_this_record": source,
@@ -119,8 +118,8 @@ async def run_dig(
             await hydration.hydrate_category_structure(seed_category, budget)
         if not store.has_node(seed_category):
             # Category doesn't exist even after a live hydration attempt
-            # (unknown seed, or budget ran out before we could create it) —
-            # skip it rather than crash the whole batch.
+            # (unknown seed, or its lookup failed transiently) — skip it
+            # rather than crash the whole batch.
             continue
 
         logger.info("dig started: seed=%s max_depth=%s", seed_category, max_depth)
@@ -140,17 +139,10 @@ async def run_dig(
         if not store.is_synonyms_hydrated(uri):
             await hydration.hydrate_synonyms(uri, budget)
 
-    if budget.exhausted:
-        logger.warning(
-            "dig batch finished with SPARQL budget exhausted: seeds=%d matched=%d used=%d limit=%d "
-            "— some results may be under-enriched or incomplete",
-            len(items), len(all_uris), budget.used, budget.limit,
-        )
-    else:
-        logger.info(
-            "dig batch finished within budget: seeds=%d matched=%d used=%d limit=%d",
-            len(items), len(all_uris), budget.used, budget.limit,
-        )
+    logger.info(
+        "dig batch finished: seeds=%d matched=%d sparql_calls_used=%d",
+        len(items), len(all_uris), budget.used,
+    )
 
     if fixed:
         return _prepare_output_fixed(store, matched_fixed)

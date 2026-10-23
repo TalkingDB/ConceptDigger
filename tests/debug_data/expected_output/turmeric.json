@@ -1,0 +1,18 @@
+{
+  "_comment": "Article Turmeric. 'curcuma domestica (valeton)' comes from dbp:synonyms, one of the extra properties fetch_alt_names reads besides dbo:alias/dbp:name/dbp:alternateName/foaf:name. It is stored as alt_name.",
+  "status_code": 200,
+  "min_distinct_entities": 1,
+  "must_include_records": [
+    {
+      "entity_url": "DBPedia>Turmeric",
+      "surface_text": "turmeric",
+      "how_this_record": "rdfs:label"
+    },
+    {
+      "entity_url": "DBPedia>Turmeric",
+      "surface_text": "curcuma domestica (valeton)",
+      "how_this_record": "alt_name"
+    }
+  ],
+  "must_not_include_entities": []
+}

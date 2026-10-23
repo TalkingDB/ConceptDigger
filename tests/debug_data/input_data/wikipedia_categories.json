@@ -45,6 +45,12 @@
       "kind": "article",
       "url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
       "description": "Article input with a parenthesised title. Checks the label, the alternate name 'mercury', and redirect surface text."
+    },
+    {
+      "id": "turmeric",
+      "kind": "article",
+      "url": "https://en.wikipedia.org/wiki/Turmeric",
+      "description": "Article input. Checks an alternate name that only comes from one of the extra alt-name properties (dbp:synonyms 'Curcuma domestica (Valeton)')."
     }
   ]
 }

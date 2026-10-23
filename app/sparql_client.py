@@ -6,7 +6,9 @@ of the legacy bulk .nt dump files:
     article_categories_en.nt       -> fetch_member_articles (dct:subject)
     labels_en.nt                   -> fetch_labels          (rdfs:label)
     mappingbased_properties_en.nt  -> fetch_alt_names       (dbo:alias, dbp:name,
-                                                              dbp:alternateName, foaf:name)
+                                                              dbp:alternateName, foaf:name,
+                                                              other/native/former/taxonomic
+                                                              name properties)
     redirects_en.nt                -> fetch_redirect_sources    (dbo:wikiPageRedirects)
     disambiguations_en.nt          -> fetch_disambiguation_sources (dbo:wikiPageDisambiguates)
 
@@ -200,10 +202,12 @@ class SparqlClient:
         uri = _to_full_uri(local_name)
         q = (
             "SELECT DISTINCT ?name WHERE { "
-            f"{{ {uri} dbo:alias ?name }} UNION "
-            f"{{ {uri} dbp:name ?name }} UNION "
-            f"{{ {uri} dbp:alternateName ?name }} UNION "
-            f"{{ {uri} foaf:name ?name }} "
+            "VALUES ?p { dbo:alias dbp:name dbp:alternateName foaf:name "
+            "dbp:otherNames dbp:otherName dbp:alternativeNames dbp:altname dbp:alias "
+            "dbo:alternativeName foaf:nick dbp:commonName dbp:nativeName dbo:formerName "
+            "dbp:synonyms dbp:synonym dbo:synonym } "
+            f"{uri} ?p ?name . "
+            "FILTER (isLiteral(?name) && (lang(?name) = '' || langMatches(lang(?name), 'en'))) "
             "}"
         )
         rows = await self._run(client, q)

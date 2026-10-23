@@ -7,10 +7,11 @@ now only one dig endpoint and it's always correct).
 
 Request body:
 {
-  "categories": ["Category:Birds", "Category:Fish"],
-  "max_depth": 2,
-  "return_categories": true,
-  "return_pages": true
+    "categories": ["Category:Birds", "Category:Fish"],
+    "max_depth": 2,
+    "return_categories": true,
+    "return_pages": true,
+    "export": false
 }
 
 max_depth / return_categories / return_pages apply to every category in the
@@ -19,23 +20,34 @@ category could carry its own depth/flags). max_depth may not exceed
 MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
 Response body: a JSON array of
-{entity_url, surface_text, seed_category, how_this_record} objects.
+{entity_url, entity, surface_text, seed_category, how_this_record} objects.
+When export is true, the same records are also written to
+data/exports/<Seed>_<timestamp>_<id>.json, one file per seed category.
+A write failure is logged and does not fail /dig.
 
-If the per-request SPARQL call budget (MAX_SPARQL_CALLS_PER_REQUEST) is
-exhausted before every branch could be fully explored/enriched, the response
-still contains whatever was hydrated (this call or previously cached) and an
-`X-SPARQL-Budget-Exhausted: true` header is set — the body stays a plain
-JSON array either way.
+POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
+file on demand for a single category; it returns the paths written. Its body
+is just the category and an optional max_depth (categories and pages are
+always included):
+{
+  "category": "http://dbpedia.org/resource/Category:Food_ingredients",
+  "max_depth": 2
+}
 """
+import asyncio
+import logging
 from typing import List
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
 from ..config import settings
 from ..dig import run_dig
+from ..export import collect_from_cache, write_exports
 from ..hydration import SparqlBudget
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["dig"])
 
@@ -56,6 +68,10 @@ class DigRequest(BaseModel):
     )
     return_categories: bool = Field(True, description="Include matched subcategories in the output.")
     return_pages: bool = Field(True, description="Include matched member articles in the output.")
+    export: bool = Field(
+        False,
+        description="If true, also write JSON files under data/exports/. Default false.",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -64,16 +80,41 @@ class DigRequest(BaseModel):
                 "max_depth": 2,
                 "return_categories": True,
                 "return_pages": True,
+                "export": False,
+            }
+        }
+    }
+
+
+class ExportRequest(BaseModel):
+    category: str = Field(
+        ...,
+        description="DBpedia/Wikipedia category URL (or Category: local name) to export from the cache.",
+    )
+    max_depth: int = Field(
+        1,
+        ge=0,
+        description=(
+            f"How many levels deep to traverse. Must not exceed "
+            f"{settings.max_depth_hard_cap}."
+        ),
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "category": "http://dbpedia.org/resource/Category:Food_ingredients",
+                "max_depth": 2,
             }
         }
     }
 
 
 @router.post("/dig")
-async def dig(body: DigRequest, request: Request, response: Response):
+async def dig(body: DigRequest, request: Request):
     store = request.app.state.store
     hydration = request.app.state.hydration
-    budget = SparqlBudget(settings.max_sparql_calls_per_request)
+    budget = SparqlBudget()
 
     max_depth = require_max_depth(body.max_depth)
     items = [
@@ -86,7 +127,21 @@ async def dig(body: DigRequest, request: Request, response: Response):
         for category in body.categories
     ]
 
-    result = await run_dig(hydration, store, items, budget, fixed=True)
-    if budget.exhausted:
-        response.headers["X-SPARQL-Budget-Exhausted"] = "true"
-    return result
+    records = await run_dig(hydration, store, items, budget, fixed=True)
+    if body.export:
+        try:
+            await asyncio.to_thread(write_exports, store, [item[0] for item in items], records)
+        except Exception:
+            logger.exception("Failed to write /dig export files; returning records anyway")
+    return records
+
+
+@router.post("/export")
+async def export(body: ExportRequest, request: Request):
+    store = request.app.state.store
+    max_depth = require_max_depth(body.max_depth)
+    seed = require_category(body.category)
+    if not store.has_node(seed):
+        raise HTTPException(status_code=404, detail=f"Category not in cache: {seed}")
+    records = collect_from_cache(store, seed, max_depth, return_categories=True, return_pages=True)
+    return {"files": await asyncio.to_thread(write_exports, store, [seed], records)}

@@ -55,7 +55,8 @@ Base path: `/api/v1`. Interactive docs: `http://localhost:5007/docs`.
   "categories": ["http://dbpedia.org/resource/Category:Food_ingredients"],
   "max_depth": 1,
   "return_categories": true,
-  "return_pages": true
+  "return_pages": true,
+  "export": false
 }
 ```
 
@@ -65,6 +66,7 @@ Base path: `/api/v1`. Interactive docs: `http://localhost:5007/docs`.
 | `max_depth` | int >= 0 | `1` | Must not exceed `MAX_DEPTH_HARD_CAP`, otherwise `400` |
 | `return_categories` | bool | `true` | Include sub-categories in the output |
 | `return_pages` | bool | `true` | Include member articles in the output |
+| `export` | bool | `false` | If true, also write JSON files under `data/exports/` |
 
 `max_depth`, `return_categories` and `return_pages` apply to every category in
 the request.
@@ -81,12 +83,14 @@ Response: a JSON array (abridged, illustrative):
 [
   {
     "entity_url": "DBPedia>Category:Spices",
+    "entity": "Category:Spices",
     "surface_text": "spices",
     "seed_category": "Category:Food_ingredients",
     "how_this_record": "rdfs:label"
   },
   {
     "entity_url": "DBPedia>Category:Spices",
+    "entity": "Category:Spices",
     "surface_text": "spice",
     "seed_category": "Category:Food_ingredients",
     "how_this_record": "redirect"
@@ -97,6 +101,7 @@ Response: a JSON array (abridged, illustrative):
 | Field | Meaning |
 |---|---|
 | `entity_url` | `DBPedia>` followed by the node's local name |
+| `entity` | The node's local name (`Category:Spices`, `Turmeric`) |
 | `surface_text` | A lowercase synonym for that node |
 | `seed_category` | The category you dug that led to this node |
 | `how_this_record` | Where the synonym came from: `rdfs:label`, `alt_name`, `redirect` or `disambiguation` |
@@ -113,9 +118,19 @@ Status codes:
 | `404` | A seed category does not exist in DBpedia |
 | `502` | The SPARQL endpoint was unavailable for a call that could not be skipped |
 
-If the per-request SPARQL budget runs out, the response still contains
-everything hydrated so far and carries the header
-`X-SPARQL-Budget-Exhausted: true`.
+
+### `POST /api/v1/export`
+
+Writes cached `/dig`-format records to `data/exports/` for one category. No SPARQL.
+After each write, older files are pruned so at most `EXPORT_MAX_FILES` remain.
+
+```json
+{ "category": "Category:Food_ingredients", "max_depth": 2 }
+```
+
+Returns `{ "files": ["data/exports/Food_ingredients_<timestamp>_<id>.json"] }`.
+`404` if the category is not in the cache yet.
+
 
 ### `POST /api/v1/hydrate-category`
 
@@ -126,8 +141,8 @@ returning anything.
 { "category": "Category:Birds", "max_depth": 2 }
 ```
 
-Returns `category`, `max_depth`, `new_nodes`, `new_edges`,
-`sparql_calls_used` and `budget_exhausted`.
+Returns `category`, `max_depth`, `new_nodes`, `new_edges`
+and `sparql_calls_used`.
 
 ### `POST /api/v1/hydrate-synonyms`
 
@@ -137,7 +152,7 @@ Pre-warms the synonyms of one category or article.
 { "entity": "Category:Birds" }
 ```
 
-Returns `entity`, `synonyms_added`, `sparql_calls_used` and `budget_exhausted`.
+Returns `entity`, `synonyms_added` and `sparql_calls_used`.
 
 ### `GET /api/v1/graph?root=Category:Birds&depth=6`
 
@@ -168,11 +183,11 @@ All settings are environment variables.
 |---|---|---|
 | `SPARQL_ENDPOINT` | `https://dbpedia.org/sparql` | Endpoint for all queries. Point it at a self-hosted Virtuoso instance if you have one |
 | `MAX_DEPTH_HARD_CAP` | `6` | Highest `max_depth` a request may use |
-| `MAX_SPARQL_CALLS_PER_REQUEST` | `10000` | SPARQL calls one request may make. After that, hydration stops and the header above is set |
 | `SPARQL_TIMEOUT_SECONDS` | `20` | Read timeout per SPARQL call |
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
+| `EXPORT_MAX_FILES` | `50` | Newest export JSON files to keep under `data/exports/`; `0` disables pruning |
 | `PORT` | `5007` | Host port used by `start.sh` (the container always listens on 5007) |
 
 ## Running it
@@ -219,7 +234,7 @@ are served from the cache.
 
 - **Throttling and retries** - calls are spaced out and retried with backoff on
   429/502/503/504 (honouring `Retry-After`, capped at 30 s).
-- **Call budget** - one request cannot trigger an unbounded crawl.
+- **Call counting** - each request logs how many SPARQL calls it made. `MAX_DEPTH_HARD_CAP` is the only bound on a dig.
 - **Skip-and-continue** - if a single lookup keeps failing, it is skipped, the
   node stays un-hydrated so it is retried next time, and the dig continues.
 - **De-duplicated hydration** - concurrent requests for the same node share one
@@ -237,7 +252,8 @@ app/
   config.py          Environment-driven settings
   category.py        Input normalization and validation
   dig.py             Traversal and output building for /dig
-  hydration.py       SPARQL budget and hydration of structure and synonyms
+  export.py          JSON file export and cache-only traversal for /export
+  hydration.py       SPARQL call counter and hydration of structure and synonyms
   sparql_client.py   Async SPARQL client with throttling and retries
   graph_store.py     In-memory graph, JSON cache, de-duplication
   utils.py           Label conversion and name safety checks
@@ -289,7 +305,7 @@ updated to the new request and response format.
 - Runs as a single worker. Several workers would each keep their own graph; a
   shared store such as Redis would be needed to scale out.
 - If lookups are skipped after repeated failures, the response is not flagged
-  as incomplete (only budget exhaustion sets a header).
+  as incomplete.
 - The public DBpedia endpoint can be slow or rate-limited; a self-hosted
   endpoint is recommended for heavy use.
 - No authentication.
