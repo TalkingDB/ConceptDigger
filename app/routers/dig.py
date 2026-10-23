@@ -18,18 +18,33 @@ batch (this is a change from the old per-item-tuple protocol, where each
 category could carry its own depth/flags). max_depth may not exceed
 MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
-Response body: a JSON array of
-{entity_url, surface_text, seed_category, how_this_record} objects.
+Response body:
+{
+    "data": [
+        {
+            "entity_url": "DBPedia>Sodium_chloride",
+            "surface_text": "sodium chloride",
+            "seed_category": "Category:Example",
+            "how_this_record": "rdfs:label"
+        }
+    ],
+    "status": "complete",
+    "failed_requests": 0,
+    "error": null
+}
 
-If the per-request SPARQL call budget (MAX_SPARQL_CALLS_PER_REQUEST) is
-exhausted before every branch could be fully explored/enriched, the response
-still contains whatever was hydrated (this call or previously cached) and an
-`X-SPARQL-Budget-Exhausted: true` header is set — the body stays a plain
-JSON array either way.
+Status values:
+- complete: All relevant SPARQL requests succeeded.
+- incomplete: Some SPARQL requests failed, but results are available.
+- failed: All relevant attempted SPARQL requests failed.
+
+When the SPARQL budget is exhausted, any available results are returned,
+and X-SPARQL-Budget-Exhausted: true is set in the response headers.
 """
-from typing import List
+from typing import Literal, List
 
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
@@ -68,9 +83,42 @@ class DigRequest(BaseModel):
         }
     }
 
+class DigResultItem(BaseModel):
+    entity_url: str
+    surface_text: str
+    seed_category: str
+    how_this_record: str
 
-@router.post("/dig")
-async def dig(body: DigRequest, request: Request, response: Response):
+
+class DigResponse(BaseModel):
+    data: List[DigResultItem] = Field(
+        default_factory=list,
+        description="Retrieved entities and their surface forms.",
+    )
+    status: Literal["complete", "incomplete", "failed"] = Field(
+        description="Whether the retrieval completed successfully.",
+    )
+    failed_requests: int = Field(
+        ge=0,
+        description="Number of SPARQL requests that failed.",
+    )
+    error: str | None = Field(
+        default=None,
+        description="Error message when retrieval failed or was incomplete.",
+    )
+
+
+@router.post(
+    "/dig", 
+    response_model=DigResponse,
+    responses={
+        502: {
+            "model": DigResponse,
+            "description": "All relevant attempted SPARQL requests failed."
+        }
+    }
+)
+async def dig(body: DigRequest, request: Request, response: Response) -> DigResponse | JSONResponse:
     store = request.app.state.store
     hydration = request.app.state.hydration
     budget = SparqlBudget(settings.max_sparql_calls_per_request)
@@ -87,6 +135,22 @@ async def dig(body: DigRequest, request: Request, response: Response):
     ]
 
     result = await run_dig(hydration, store, items, budget, fixed=True)
+   
+    # validate the result returned by run_dig against the API schema.
+    dig_response = DigResponse.model_validate(result)
+
+    headers = {}
     if budget.exhausted:
-        response.headers["X-SPARQL-Budget-Exhausted"] = "true"
-    return result
+        headers["X-SPARQL-Budget-Exhausted"] = "true"
+
+    if dig_response.status == "failed":
+        return JSONResponse(
+            status_code=502,
+            content=dig_response.model_dump(mode="json"),
+            headers=headers,
+        )
+
+    for name, value in headers.items():
+        response.headers[name] = value
+
+    return dig_response
