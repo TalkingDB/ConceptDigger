@@ -374,6 +374,7 @@ def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
         text, source = pair
         records.append({
             "entity_url": f"DBPedia>{local_name}",
+            "entity": local_name,
             "surface_text": text,
             "seed_category": local_name,
             "how_this_record": source,

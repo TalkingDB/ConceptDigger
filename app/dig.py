@@ -67,6 +67,7 @@ def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[st
         for text, source in store.synonyms(uri):
             output.append({
                 "entity_url": f"DBPedia>{uri}",
+                "entity": uri,
                 "surface_text": text,
                 "seed_category": uri,
                 "how_this_record": source,
@@ -80,6 +81,7 @@ def _prepare_output_fixed(store: GraphStore, matched: Set[Tuple[str, str]]) -> L
         for text, source in store.synonyms(uri):
             output.append({
                 "entity_url": f"DBPedia>{uri}",
+                "entity": uri,
                 "surface_text": text,
                 "seed_category": seed,
                 "how_this_record": source,

@@ -55,7 +55,8 @@ Base path: `/api/v1`. Interactive docs: `http://localhost:5007/docs`.
   "categories": ["http://dbpedia.org/resource/Category:Food_ingredients"],
   "max_depth": 1,
   "return_categories": true,
-  "return_pages": true
+  "return_pages": true,
+  "export": false
 }
 ```
 
@@ -65,6 +66,7 @@ Base path: `/api/v1`. Interactive docs: `http://localhost:5007/docs`.
 | `max_depth` | int >= 0 | `1` | Must not exceed `MAX_DEPTH_HARD_CAP`, otherwise `400` |
 | `return_categories` | bool | `true` | Include sub-categories in the output |
 | `return_pages` | bool | `true` | Include member articles in the output |
+| `export` | bool | `false` | If true, also write JSON files under `data/exports/` |
 
 `max_depth`, `return_categories` and `return_pages` apply to every category in
 the request.
@@ -81,12 +83,14 @@ Response: a JSON array (abridged, illustrative):
 [
   {
     "entity_url": "DBPedia>Category:Spices",
+    "entity": "Category:Spices",
     "surface_text": "spices",
     "seed_category": "Category:Food_ingredients",
     "how_this_record": "rdfs:label"
   },
   {
     "entity_url": "DBPedia>Category:Spices",
+    "entity": "Category:Spices",
     "surface_text": "spice",
     "seed_category": "Category:Food_ingredients",
     "how_this_record": "redirect"
@@ -97,6 +101,7 @@ Response: a JSON array (abridged, illustrative):
 | Field | Meaning |
 |---|---|
 | `entity_url` | `DBPedia>` followed by the node's local name |
+| `entity` | The node's local name (`Category:Spices`, `Turmeric`) |
 | `surface_text` | A lowercase synonym for that node |
 | `seed_category` | The category you dug that led to this node |
 | `how_this_record` | Where the synonym came from: `rdfs:label`, `alt_name`, `redirect` or `disambiguation` |
@@ -112,6 +117,19 @@ Status codes:
 | `400` | Invalid category, unsafe characters, or `max_depth` above the cap |
 | `404` | A seed category does not exist in DBpedia |
 | `502` | The SPARQL endpoint was unavailable for a call that could not be skipped |
+
+
+### `POST /api/v1/export`
+
+Writes cached `/dig`-format records to `data/exports/` for one category. No SPARQL.
+After each write, older files are pruned so at most `EXPORT_MAX_FILES` remain.
+
+```json
+{ "category": "Category:Food_ingredients", "max_depth": 2 }
+```
+
+Returns `{ "files": ["data/exports/Food_ingredients_<timestamp>_<id>.json"] }`.
+`404` if the category is not in the cache yet.
 
 
 ### `POST /api/v1/hydrate-category`
@@ -169,6 +187,7 @@ All settings are environment variables.
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
+| `EXPORT_MAX_FILES` | `50` | Newest export JSON files to keep under `data/exports/`; `0` disables pruning |
 | `PORT` | `5007` | Host port used by `start.sh` (the container always listens on 5007) |
 
 ## Running it
@@ -233,6 +252,7 @@ app/
   config.py          Environment-driven settings
   category.py        Input normalization and validation
   dig.py             Traversal and output building for /dig
+  export.py          JSON file export and cache-only traversal for /export
   hydration.py       SPARQL call counter and hydration of structure and synonyms
   sparql_client.py   Async SPARQL client with throttling and retries
   graph_store.py     In-memory graph, JSON cache, de-duplication

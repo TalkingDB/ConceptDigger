@@ -44,6 +44,10 @@ class Settings:
     # a volume in production.
     cache_file_path: str = os.getenv("CACHE_FILE_PATH", "data/graph_cache.json")
 
+    # After each successful export write, older JSON files in data/exports/
+    # are deleted until at most this many remain. 0 disables pruning.
+    export_max_files: int = int(os.getenv("EXPORT_MAX_FILES", "20"))
+
     port: int = int(os.getenv("PORT", "5007"))
 
 
