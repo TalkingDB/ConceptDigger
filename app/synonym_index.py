@@ -9,6 +9,7 @@ true only when every surface form from the file comes back in that search.
 import hashlib
 import json
 import os
+import re
 from typing import Any, Dict, List, Tuple
 
 import httpx
@@ -298,6 +299,195 @@ def _raise_for_status(response: httpx.Response, action: str) -> None:
     if response.status_code in (502, 503, 504):
         raise ElasticsearchUnavailable(message)
     raise ElasticsearchFailure(message)
+
+
+_MATCH_CANDIDATE_CAP = 10000
+
+
+_TOKEN = re.compile(r"\w+", re.UNICODE)
+
+
+def _phrase_pattern(phrase: str) -> re.Pattern:
+    parts = [re.escape(part) for part in phrase.split() if part]
+    if not parts:
+        return re.compile(r"a^")
+    return re.compile(rf"(?<!\w){r'\s+'.join(parts)}(?!\w)", re.IGNORECASE)
+
+
+def _allowed_edits(term: str) -> int:
+    """Elasticsearch AUTO fuzziness: exact up to 2 characters, then 1, then 2."""
+    length = len(term)
+    if length <= 2:
+        return 0
+    if length <= 5:
+        return 1
+    return 2
+
+
+def _edit_distance(left: str, right: str, limit: int) -> int:
+    if abs(len(left) - len(right)) > limit:
+        return limit + 1
+    previous = list(range(len(right) + 1))
+    for i, left_char in enumerate(left, 1):
+        current = [i]
+        smallest = i
+        for j, right_char in enumerate(right, 1):
+            cost = 0 if left_char == right_char else 1
+            best = min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+            current.append(best)
+            if best < smallest:
+                smallest = best
+        if smallest > limit:
+            return limit + 1
+        previous = current
+    return previous[-1]
+
+
+def _fuzzy_spans(sentence: str, phrase: str) -> List[Tuple[int, int]]:
+    wanted = [token.lower() for token in _TOKEN.findall(phrase)]
+    tokens = [(match.group(), match.start(), match.end()) for match in _TOKEN.finditer(sentence)]
+    width = len(wanted)
+    if not width or len(tokens) < width:
+        return []
+    spans = []
+    for start in range(len(tokens) - width + 1):
+        window = tokens[start:start + width]
+        close = True
+        for token, synonym in zip(window, wanted):
+            word = token[0].lower()
+            limit = _allowed_edits(word)
+            if _edit_distance(word, synonym, limit) > limit:
+                close = False
+                break
+        if close:
+            spans.append((window[0][1], window[-1][2]))
+    return spans
+
+
+def surface_hits(
+    sentence: str, documents: List[Dict[str, Any]], *, fuzzy: bool = False,
+) -> List[Dict[str, Any]]:
+    """Entities whose synonym text appears as a whole phrase in the sentence.
+
+    With fuzzy=False the phrase must match exactly. With fuzzy=True each word
+    may differ by Elasticsearch's AUTO edit distance, so "ben oill" matches
+    "ben oil" while "boiling" still does not match "oil".
+    """
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for document in documents:
+        matched = []
+        seen = set()
+        for form in document.get("surface_text") or []:
+            if not isinstance(form, dict):
+                continue
+            text = form.get("text")
+            if not isinstance(text, str) or not text.strip():
+                continue
+            how = form.get("how_this_record")
+            if fuzzy:
+                found_spans = _fuzzy_spans(sentence, text)
+            else:
+                found_spans = [(found.start(), found.end()) for found in _phrase_pattern(text).finditer(sentence)]
+            for start, end in found_spans:
+                item = {
+                    "text": text,
+                    "start": start,
+                    "end": end,
+                }
+                if fuzzy:
+                    item["matched_text"] = sentence[start:end]
+                if isinstance(how, str):
+                    item["how_this_record"] = how
+                key = (item["text"], item["start"], item["end"], item.get("how_this_record"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                matched.append(item)
+        if not matched:
+            continue
+        identity = document.get("entity_url") or document.get("entity") or ""
+        slot = grouped.get(identity)
+        if slot is None:
+            slot = {
+                "entity": document.get("entity"),
+                "entity_url": document.get("entity_url"),
+                "surface_text": [],
+            }
+            if document.get("seed_category"):
+                slot["seed_category"] = document["seed_category"]
+            grouped[identity] = slot
+        existing = {
+            (item["text"], item["start"], item["end"], item.get("how_this_record"))
+            for item in slot["surface_text"]
+        }
+        for item in matched:
+            key = (item["text"], item["start"], item["end"], item.get("how_this_record"))
+            if key not in existing:
+                slot["surface_text"].append(item)
+    matches = list(grouped.values())
+    for match in matches:
+        match["surface_text"].sort(key=lambda item: (item["start"], item["end"], item["text"]))
+    matches.sort(key=lambda match: (match["surface_text"][0]["start"], match.get("entity") or ""))
+    return matches
+
+
+async def match_sentence(
+    client: httpx.AsyncClient, sentence: str, *, fuzzy: bool = False,
+) -> Tuple[int, Dict[str, Any]]:
+    """Find indexed entities whose synonyms occur in the sentence."""
+    body: Dict[str, Any] = {
+        "sentence": sentence,
+        "index": settings.elasticsearch_index,
+        "elasticsearch_available": True,
+        "fuzzy": fuzzy,
+        "matches": [],
+    }
+    try:
+        candidates, complete = await _candidate_documents(client, sentence, fuzzy=fuzzy)
+    except ElasticsearchUnavailable as exc:
+        body["elasticsearch_available"] = False
+        body["detail"] = exc.detail
+        return 503, body
+    except ElasticsearchFailure as exc:
+        body["detail"] = exc.detail
+        return 502, body
+
+    body["matches"] = surface_hits(sentence, candidates, fuzzy=fuzzy)
+    if not complete:
+        body["detail"] = (
+            "The synonym scan stopped early, so some matching entities may be missing."
+        )
+    return 200, body
+
+
+async def _candidate_documents(
+    client: httpx.AsyncClient, sentence: str, *, fuzzy: bool = False,
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Documents that share a token with the sentence. The caller checks whole phrases."""
+    # One page stays under Elasticsearch's result window. Sorting on _id is
+    # rejected unless fielddata is enabled, and this index is small enough to
+    # read the matching candidates in a single response.
+    match: Dict[str, Any] = {"query": sentence}
+    if fuzzy:
+        match["fuzziness"] = "AUTO"
+    response = await _request(
+        client,
+        "POST",
+        f"{_index_url()}/_search",
+        json={
+            "size": _MATCH_CANDIDATE_CAP,
+            "track_total_hits": True,
+            "query": {"match": {"surface_text.text": match}},
+            "_source": ["entity", "entity_url", "seed_category", "surface_text"],
+        },
+    )
+    _raise_for_status(response, "matching the sentence")
+    payload = response.json()
+    hits = payload.get("hits", {}).get("hits", [])
+    raw_total = payload.get("hits", {}).get("total", 0)
+    total = raw_total.get("value", 0) if isinstance(raw_total, dict) else raw_total
+    documents = [(hit.get("_source") or {}) for hit in hits]
+    return documents, len(documents) >= total
 
 
 def _first_bulk_error(report: Dict[str, Any]) -> str:

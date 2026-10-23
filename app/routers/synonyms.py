@@ -17,6 +17,7 @@ from ..synonym_index import (
     ExportFileNotFound,
     InvalidExportFile,
     index_synonyms,
+    match_sentence,
     read_export_documents,
     resolve_export_file,
 )
@@ -31,6 +32,37 @@ class LoadSynonymsRequest(BaseModel):
         ...,
         description="Export file to load. Swagger lists these newest first.",
     )
+    
+class MatchSentenceRequest(BaseModel):
+    sentence: str = Field(..., description="Sentence to scan for known entity synonyms.")
+    fuzzy: bool = Field(
+        False,
+        description="When true, allow small typos (Elasticsearch AUTO edit distance). Exact phrase match when false.",
+    )
+
+
+class MatchedSurface(BaseModel):
+    text: str
+    how_this_record: str | None = None
+    start: int
+    end: int
+    matched_text: str | None = None
+
+
+class MatchedEntity(BaseModel):
+    entity: str | None = None
+    entity_url: str | None = None
+    seed_category: str | None = None
+    surface_text: list[MatchedSurface]
+
+
+class MatchSentenceResult(BaseModel):
+    sentence: str
+    index: str
+    elasticsearch_available: bool
+    fuzzy: bool = False
+    matches: list[MatchedEntity]
+    detail: str | None = None
 
 
 class LoadSynonymsResult(BaseModel):
@@ -93,5 +125,30 @@ async def load_synonyms(body: LoadSynonymsRequest, request: Request):
 
     status_code, payload = await index_synonyms(
         request.app.state.http_client, body.file_name, documents,
+    )
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@router.post(
+    "/synonyms/match",
+    response_model=MatchSentenceResult,
+    responses={
+        502: {"model": MatchSentenceResult},
+        503: {"model": MatchSentenceResult},
+    },
+)
+async def match_synonyms(body: MatchSentenceRequest, request: Request):
+    """Return entities whose indexed synonyms appear in the sentence.
+
+    Leave `fuzzy` false for an exact phrase. Set `fuzzy` true to allow small
+    typos such as "ben oill" for "ben oil". A shorter word inside another word
+    still does not match. If Elasticsearch cannot be reached, the body has
+    `elasticsearch_available: false` and `detail` with the failure.
+    """
+    sentence = body.sentence.strip()
+    if not sentence:
+        raise HTTPException(status_code=400, detail="sentence is empty")
+    status_code, payload = await match_sentence(
+        request.app.state.http_client, sentence, fuzzy=body.fuzzy,
     )
     return JSONResponse(status_code=status_code, content=payload)
