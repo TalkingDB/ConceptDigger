@@ -1,6 +1,7 @@
 """Offline tests for opt-in /dig export, /export, record shape, and cleanup."""
 import copy
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import httpx
@@ -15,10 +16,28 @@ from app.hydration import HydrationService
 from app.main import app
 
 CATEGORY = "Category:Noble_gases"
+RECORD = {
+    "entity_url": "DBPedia>Helium",
+    "entity": "Helium",
+    "surface_text": "helium",
+    "seed_category": CATEGORY,
+    "how_this_record": "rdfs:label",
+}
+
+TREE = {
+    "Category:Root": {"subcats": ["Category:Child"], "pages": ["ShallowPage"]},
+    "Category:Child": {"subcats": [], "pages": ["DeepPage"]},
+}
+
+MULTI = {
+    "Category:Gases": {"subcats": [], "pages": ["Helium"]},
+    "Category:Metals": {"subcats": [], "pages": ["Iron"]},
+}
 
 
 class StubSparqlClient:
-    def __init__(self):
+    def __init__(self, tree=None):
+        self.tree = tree
         self.calls = 0
 
     async def _count(self):
@@ -30,11 +49,15 @@ class StubSparqlClient:
 
     async def fetch_subcategories(self, client, local_name):
         await self._count()
-        return []
+        if self.tree is None:
+            return []
+        return self.tree.get(local_name, {}).get("subcats", [])
 
     async def fetch_member_articles(self, client, local_name):
         await self._count()
-        return ["Helium"]
+        if self.tree is None:
+            return ["Helium"]
+        return self.tree.get(local_name, {}).get("pages", [])
 
     async def fetch_labels(self, client, local_name):
         await self._count()
@@ -55,16 +78,42 @@ class StubSparqlClient:
 
 @pytest.fixture
 async def stub_api(tmp_path):
-    store = GraphStore(str(tmp_path / "graph_cache.json"))
-    http_client = httpx.AsyncClient()
-    local_app = copy.copy(app)
-    local_app.state = State()
-    local_app.state.store = store
-    local_app.state.hydration = HydrationService(store, StubSparqlClient(), http_client)
-    local_app.state.http_client = http_client
-    async with httpx.AsyncClient(transport=ASGITransport(app=local_app), base_url="http://test") as client:
-        yield client, tmp_path, store
-    await http_client.aclose()
+    async with _app_client(tmp_path) as packed:
+        yield packed
+
+
+@pytest.fixture
+async def tree_api(tmp_path):
+    async with _app_client(tmp_path, TREE) as packed:
+        yield packed
+
+
+@pytest.fixture
+async def multi_api(tmp_path):
+    async with _app_client(tmp_path, MULTI) as packed:
+        yield packed
+
+
+class _app_client:
+    def __init__(self, tmp_path, tree=None):
+        self.tmp_path = tmp_path
+        self.sparql = StubSparqlClient(tree)
+        self.store = GraphStore(str(tmp_path / "graph_cache.json"))
+        self.http_client = httpx.AsyncClient()
+        local_app = copy.copy(app)
+        local_app.state = State()
+        local_app.state.store = self.store
+        local_app.state.hydration = HydrationService(self.store, self.sparql, self.http_client)
+        local_app.state.http_client = self.http_client
+        self._transport = httpx.AsyncClient(transport=ASGITransport(app=local_app), base_url="http://test")
+
+    async def __aenter__(self):
+        self.client = await self._transport.__aenter__()
+        return self.client, self.tmp_path, self.store, self.sparql
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._transport.__aexit__(exc_type, exc, tb)
+        await self.http_client.aclose()
 
 
 def _exports(tmp_path: Path) -> list[Path]:
@@ -74,8 +123,12 @@ def _exports(tmp_path: Path) -> list[Path]:
     return sorted(folder.glob("*.json"))
 
 
+def _record_key(rec: dict) -> tuple:
+    return (rec["entity"], rec["surface_text"], rec["how_this_record"], rec["seed_category"])
+
+
 async def test_dig_records_include_entity(stub_api):
-    client, _tmp_path, _store = stub_api
+    client, _tmp_path, _store, _sparql = stub_api
     response = await client.post(
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0},
@@ -95,7 +148,7 @@ async def test_dig_records_include_entity(stub_api):
 
 
 async def test_dig_does_not_export_by_default(stub_api):
-    client, tmp_path, _store = stub_api
+    client, tmp_path, _store, _sparql = stub_api
     response = await client.post(
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0},
@@ -105,7 +158,7 @@ async def test_dig_does_not_export_by_default(stub_api):
 
 
 async def test_dig_export_true_writes_file(stub_api):
-    client, tmp_path, _store = stub_api
+    client, tmp_path, _store, _sparql = stub_api
     response = await client.post(
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0, "export": True},
@@ -119,7 +172,7 @@ async def test_dig_export_true_writes_file(stub_api):
 
 
 async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch):
-    client, tmp_path, _store = stub_api
+    client, tmp_path, _store, _sparql = stub_api
 
     def boom(*_args, **_kwargs):
         raise OSError("disk full")
@@ -135,7 +188,7 @@ async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch
 
 
 async def test_export_endpoint_writes_file(stub_api):
-    client, tmp_path, _store = stub_api
+    client, tmp_path, _store, _sparql = stub_api
     await client.post("/api/v1/dig", json={"categories": [CATEGORY], "max_depth": 0})
     response = await client.post(
         "/api/v1/export",
@@ -149,19 +202,88 @@ async def test_export_endpoint_writes_file(stub_api):
     assert all("entity" in rec for rec in payload)
 
 
+async def test_export_404_for_uncached_category(offline_api):
+    response = await offline_api.post(
+        "/api/v1/export",
+        json={"category": CATEGORY, "max_depth": 0},
+    )
+    assert response.status_code == 404
+    assert "not in cache" in response.json()["detail"]
+
+
+async def test_export_400_for_invalid_category(offline_api):
+    response = await offline_api.post(
+        "/api/v1/export",
+        json={"category": "Food ingredients", "max_depth": 0},
+    )
+    assert response.status_code == 400
+    assert "not a category URL" in response.json()["detail"]
+
+
+async def test_export_400_for_excessive_max_depth(offline_api):
+    response = await offline_api.post(
+        "/api/v1/export",
+        json={"category": CATEGORY, "max_depth": settings.max_depth_hard_cap + 1},
+    )
+    assert response.status_code == 400
+    assert "max_depth cannot exceed" in response.json()["detail"]
+
+
+async def test_export_matches_dig_for_nested_cache(tree_api):
+    client, _tmp_path, _store, sparql = tree_api
+    dig = await client.post(
+        "/api/v1/dig",
+        json={"categories": ["Category:Root"], "max_depth": 1},
+    )
+    assert dig.status_code == 200
+    dig_records = dig.json()
+    entities = {r["entity"] for r in dig_records}
+    assert "Category:Child" in entities
+    assert "ShallowPage" in entities
+    assert "DeepPage" in entities
+
+    calls_after_dig = sparql.calls
+    exported = await client.post(
+        "/api/v1/export",
+        json={"category": "Category:Root", "max_depth": 1},
+    )
+    assert exported.status_code == 200
+    assert sparql.calls == calls_after_dig
+
+    files = exported.json()["files"]
+    assert len(files) == 1
+    export_records = json.loads(Path(files[0]).read_text(encoding="utf-8"))
+    assert sorted(export_records, key=_record_key) == sorted(dig_records, key=_record_key)
+
+
+async def test_multiple_seeds_write_separate_files(multi_api):
+    client, tmp_path, _store, _sparql = multi_api
+    response = await client.post(
+        "/api/v1/dig",
+        json={
+            "categories": ["Category:Gases", "Category:Metals"],
+            "max_depth": 0,
+            "export": True,
+        },
+    )
+    assert response.status_code == 200
+    files = _exports(tmp_path)
+    assert len(files) == 2
+    by_seed = {}
+    for path in files:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        seeds = {rec["seed_category"] for rec in payload}
+        assert len(seeds) == 1
+        seed = seeds.pop()
+        by_seed[seed] = {rec["entity"] for rec in payload}
+    assert by_seed["Category:Gases"] == {"Helium"}
+    assert by_seed["Category:Metals"] == {"Iron"}
+
+
 def test_write_exports_unique_filenames(tmp_path):
     store = GraphStore(str(tmp_path / "graph_cache.json"))
-    records = [
-        {
-            "entity_url": "DBPedia>Helium",
-            "entity": "Helium",
-            "surface_text": "helium",
-            "seed_category": CATEGORY,
-            "how_this_record": "rdfs:label",
-        }
-    ]
-    first = write_exports(store, [CATEGORY], records)
-    second = write_exports(store, [CATEGORY], records)
+    first = write_exports(store, [CATEGORY], [RECORD])
+    second = write_exports(store, [CATEGORY], [RECORD])
     assert first[0] != second[0]
     assert Path(first[0]).exists()
     assert Path(second[0]).exists()
@@ -174,16 +296,22 @@ def test_write_exports_prunes_old_files(tmp_path):
     keep = settings.export_max_files
     for i in range(keep + 5):
         (folder / f"old_{i:03d}.json").write_text("[]", encoding="utf-8")
-    records = [
-        {
-            "entity_url": "DBPedia>Helium",
-            "entity": "Helium",
-            "surface_text": "helium",
-            "seed_category": CATEGORY,
-            "how_this_record": "rdfs:label",
-        }
-    ]
-    written = write_exports(store, [CATEGORY], records)
+    written = write_exports(store, [CATEGORY], [RECORD])
     remaining = _exports(tmp_path)
     assert len(remaining) == keep
     assert Path(written[0]).exists()
+
+
+def test_pruning_disabled_never_deletes_files(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.export.settings", replace(settings, export_max_files=0))
+    store = GraphStore(str(tmp_path / "graph_cache.json"))
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    old = [folder / f"old_{i:03d}.json" for i in range(5)]
+    for path in old:
+        path.write_text("[]", encoding="utf-8")
+    written = write_exports(store, [CATEGORY], [RECORD])
+    remaining = set(_exports(tmp_path))
+    assert Path(written[0]) in remaining
+    assert remaining.issuperset(old)
+    assert len(remaining) == 6
