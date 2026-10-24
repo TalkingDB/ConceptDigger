@@ -39,7 +39,26 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
         network_exception=run.network_exception,
         status_code=run.status_code,
     )
-    records = run.body if isinstance(run.body, list) and all(isinstance(r, dict) for r in run.body) else None
+    response = run.body
+
+    if isinstance(response, dict):
+        data = response.get("data")
+        records = (
+            data
+            if isinstance(data, list)
+            and all(isinstance(r, dict) for r in data)
+            else []
+        )
+    elif isinstance(response, list):
+        # ensuring backward compatibility with the old response format.
+        records = (
+            response
+            if all(isinstance(r, dict) for r in response)
+            else []
+        )
+    else:
+        records = []
+
     register_view(
         request.node.nodeid,
         LiveView(
@@ -59,7 +78,7 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
             ),
             request=case.request_body,
             expected=expected,
-            actual=run.body if run.body is not None else (run.raw_text or None),
+            actual=response if response is not None else None,
             actual_records=records,
             status_code=run.status_code,
             headers=run.headers,

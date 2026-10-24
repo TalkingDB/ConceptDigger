@@ -67,28 +67,111 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
     )
 
     if want_status != 200:
-        needle = expected.get("detail_contains")
-        detail = run.body.get("detail") if isinstance(run.body, dict) else None
+        needle = expected.get("error_contains", expected.get("detail_contains"))
+
+        error = None
+        if isinstance(run.body, dict):
+            error = run.body.get("error") or run.body.get("detail")
+
         if needle is not None:
             checks.append(
                 Check(
-                    f"error detail contains {needle!r}",
-                    isinstance(detail, str) and needle in detail,
-                    f"actual detail: {detail!r}",
+                    f"error contains {needle!r}",
+                    isinstance(error, str) and needle in error,
+                    f"actual error: {error!r}",
                 )
             )
         return checks
 
     body = run.body
-    if not isinstance(body, list):
-        checks.append(Check("response is a JSON array", False, f"actual: {type(body).__name__}"))
-        return checks
-    checks.append(Check("response is a JSON array", True, f"{len(body)} record(s)"))
 
-    bad_shape = [r for r in body if not isinstance(r, dict) or set(r) != RECORD_KEYS]
-    checks.append(Check("every record has exactly the 5 documented fields", not bad_shape,
-                        f"{len(bad_shape)} malformed record(s)" if bad_shape else ""))
-    records = [r for r in body if isinstance(r, dict)]
+    if isinstance(body, dict):
+        # new response format.
+        records = body.get("data")
+
+        if not isinstance(records, list):
+            checks.append(
+                Check(
+                    "data is a JSON array",
+                    False,
+                    f"actual: {type(records).__name__}",
+                )
+            )
+            return checks
+
+        response_status = body.get("status")
+        failed_requests = body.get("failed_requests")
+        error = body.get("error")
+
+        checks.append(
+            Check(
+                "status is valid",
+                response_status in {"complete", "incomplete", "failed"},
+                f"actual: {response_status!r}",
+            )
+        )
+
+        checks.append(
+            Check(
+                "failed_requests is a non-negative integer",
+                type(failed_requests) is int and failed_requests >= 0,
+                f"actual: {failed_requests!r}",
+            )
+        )
+
+        if response_status == "complete":
+            checks.append(
+                Check(
+                    "complete response has no error",
+                    error is None,
+                    f"actual error: {error!r}",
+                )
+            )
+        elif response_status in {"incomplete", "failed"}:
+            checks.append(
+                Check(
+                    f"{response_status} response has an error message",
+                    isinstance(error, str) and bool(error.strip()),
+                    f"actual error: {error!r}",
+                )
+            )
+
+    elif isinstance(body, list):
+        # legacy response format.
+        records = body
+
+    else:
+        checks.append(
+            Check(
+                "response is a JSON object or legacy array",
+                False,
+                f"actual: {type(body).__name__}",
+            )
+        )
+        return checks
+
+    checks.append(
+        Check(
+            "response contains a valid records array",
+            all(isinstance(r, dict) for r in records),
+            f"{len(records)} record(s)",
+        )
+    )
+
+    bad_shape = [
+        r for r in records
+        if not isinstance(r, dict) or set(r) != RECORD_KEYS
+    ]
+
+    checks.append(
+        Check(
+            "every record has exactly the 4 documented fields",
+            not bad_shape,
+            f"{len(bad_shape)} malformed record(s)" if bad_shape else "",
+        )
+    )
+
+    records = [r for r in records if isinstance(r, dict)]
 
     bad = [r for r in records if not str(r.get("entity_url", "")).startswith("DBPedia>")]
     checks.append(Check("entity_url starts with 'DBPedia>'", not bad, f"{len(bad)} violation(s)" if bad else ""))
