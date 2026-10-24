@@ -104,7 +104,11 @@ async def run_dig(
         return_categories = bool(int(return_categories_raw))
         return_pages = bool(int(return_pages_raw))
 
-        if not await hydration.category_exists(seed_category, budget):
+        exists = await hydration.category_exists(seed_category, budget)
+        if exists is None:
+            continue
+
+        if not exists:
             logger.warning(
                 "skipping seed, doesn't look like a real category: %s",
                 seed_category,
@@ -144,6 +148,28 @@ async def run_dig(
         len(items), len(all_uris), budget.used,
     )
 
+    digged_data = []
     if fixed:
-        return _prepare_output_fixed(store, matched_fixed)
-    return _prepare_output_legacy(store, matched_legacy)
+        digged_data = _prepare_output_fixed(store, matched_fixed)
+    else:
+        digged_data = _prepare_output_legacy(store, matched_legacy)
+    
+    no_queries_failed = budget.failed == 0
+    all_queries_failed = budget.used > 0 and budget.failed == budget.used
+
+    if no_queries_failed:
+        status = "complete"
+        error = None
+    elif all_queries_failed:
+        status = "failed"
+        error = f"All {budget.failed} SPARQL requests failed. Unable to retrieve results."
+    else:
+        status = "incomplete"
+        error = f"{budget.failed} SPARQL requests failed. The returned results may be incomplete."
+    
+    return {
+        "data": digged_data,
+        "status": status,
+        "failed_requests": budget.failed,
+        "error": error,
+    }

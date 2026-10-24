@@ -32,9 +32,13 @@ class SparqlBudget:
 
     def __init__(self):
         self.used = 0
+        self.failed = 0
 
     def spend(self, n: int = 1) -> None:
         self.used += n
+
+    def record_failure(self, n: int = 1) -> None:
+        self.failed += n
 
 
 class HydrationService:
@@ -43,16 +47,19 @@ class HydrationService:
         self.sparql_client = sparql_client
         self.http_client = http_client
 
-    async def _lookup(self, kind: str, local_name: str, fetch) -> Tuple[list | None, bool]:
-        """Run one SPARQL fetch. False means a transient DBpedia failure; keep going."""
+    async def _lookup( self, kind: str, local_name: str, fetch, budget: SparqlBudget) -> Tuple[list | None, bool]:
+        """Run one SPARQL fetch and record transient failures."""
         try:
             return await fetch(self.http_client, local_name), True
         except SparqlTransientError as exc:
+            budget.record_failure(1)
             logger.warning(
                 "SPARQL %s failed: node=%s err=%s — skipping this lookup and continuing /dig",
                 kind, local_name, exc,
             )
             return None, False
+        finally:
+            budget.spend(1)
 
     # ------------------------------------------------------------------
     # structure: skos:broader (subcategories) + dct:subject (member articles)
@@ -66,18 +73,16 @@ class HydrationService:
             return (0, 0)
 
         structure_complete = True
-        subcats, ok = await self._lookup("subcategories", local_name, self.sparql_client.fetch_subcategories)
+        subcats, ok = await self._lookup("subcategories", local_name, self.sparql_client.fetch_subcategories, budget=budget)
         if not ok:
             return (0, 0)
-        budget.spend(1)
 
         articles: List[str] = []
         fetched, ok = await self._lookup(
-            "member articles", local_name, self.sparql_client.fetch_member_articles
+            "member articles", local_name, self.sparql_client.fetch_member_articles, budget=budget
         )
         if ok:
             articles = fetched or []
-            budget.spend(1)
         else:
             structure_complete = False
 
@@ -102,7 +107,7 @@ class HydrationService:
 
         return (new_nodes, new_edges)
 
-    async def category_exists(self, local_name: str, budget: SparqlBudget) -> bool:
+    async def category_exists(self, local_name: str, budget: SparqlBudget) -> bool | None:
         # Already in the graph with structure hydrated means we've proven
         # this one before — no need to ask DBpedia again.
         if self.store.is_structure_hydrated(local_name):
@@ -110,15 +115,24 @@ class HydrationService:
         key = f"exists:{local_name}"
         return await self.store.run_deduped(key, self._do_check_category_exists, local_name, budget)
 
-    async def _do_check_category_exists(self, local_name: str, budget: SparqlBudget) -> bool:
+    async def _do_check_category_exists(self, local_name: str, budget: SparqlBudget) -> bool | None:
         if self.store.is_structure_hydrated(local_name):
             return True
 
-        # An exists-check cannot be skipped: if SPARQL is down here, /dig
-        # must 502 rather than pretend the category exists.
-        exists = await self.sparql_client.ask_category_exists(self.http_client, local_name)
-        budget.spend(1)
-        return exists
+        try:
+            budget.spend(1)
+            return await self.sparql_client.ask_category_exists(
+                self.http_client,
+                local_name,
+            )
+        except SparqlTransientError as exc:
+            budget.record_failure(1)
+            logger.warning(
+                "SPARQL category-existence check failed: node=%s err=%s",
+                local_name,
+                exc,
+            )
+            return None
 
     # ------------------------------------------------------------------
     # synonyms: rdfs:label, alt names, redirects, disambiguations
@@ -137,43 +151,40 @@ class HydrationService:
         # unmarked so a later /dig retries it instead of leaving it
         # under-enriched forever.
         all_lookups_completed = True
-
-        labels, ok = await self._lookup("labels", local_name, self.sparql_client.fetch_labels)
+        
+        labels, ok = await self._lookup("labels", local_name, self.sparql_client.fetch_labels, budget=budget)
         if ok:
-            budget.spend(1)
             collected += [(label.lower(), SOURCE_LABEL) for label in (labels or [])]
         else:
             all_lookups_completed = False
-
-        alt_names, ok = await self._lookup("alt-names", local_name, self.sparql_client.fetch_alt_names)
+        
+        alt_names, ok = await self._lookup("alt-names", local_name, self.sparql_client.fetch_alt_names, budget=budget)
         if ok:
-            budget.spend(1)
             collected += [(name.lower(), SOURCE_ALT_NAME) for name in (alt_names or [])]
         else:
             all_lookups_completed = False
-
+        
         redirect_sources, ok = await self._lookup(
-            "redirects", local_name, self.sparql_client.fetch_redirect_sources
+            "redirects", local_name, self.sparql_client.fetch_redirect_sources, budget=budget
         )
         if ok:
-            budget.spend(1)
             collected += [
                 (convert_entity_uri_to_label(s), SOURCE_REDIRECT) for s in (redirect_sources or [])
             ]
         else:
             all_lookups_completed = False
-
+        
         disambig_sources, ok = await self._lookup(
-            "disambiguations", local_name, self.sparql_client.fetch_disambiguation_sources
+            "disambiguations", local_name, self.sparql_client.fetch_disambiguation_sources, budget=budget
         )
         if ok:
-            budget.spend(1)
             collected += [
                 (convert_entity_uri_to_label(s), SOURCE_DISAMBIGUATION)
                 for s in (disambig_sources or [])
             ]
         else:
             all_lookups_completed = False
+        
 
         async with self.store.write_lock():
             self.store.ensure_node(local_name, SOURCE_LABEL)

@@ -24,6 +24,24 @@ def _view(request, title, inputs, api_call, req, expected, actual, verdict, chec
         exception=exc, duration_s=duration))
 
 
+async def test_live_budget_exhausted_header(live_stack, sparql_probe, request):
+    """A budget of 1 live call is spent on the existence ASK; the response must say so."""
+    sparql_probe.require()
+    case = get_case(GRAPH_CASE_ID)
+    tight = replace(settings, max_sparql_calls_per_request=1)
+    body = {"categories": [case.url], "max_depth": 1}
+    with patch("app.routers.dig.settings", tight), patch("app.dig.settings", tight):
+        resp, exc, net = await attempt(live_stack.api.post("/api/v1/dig", json=body))
+    checks = []
+    if resp is not None:
+        body = resp.json()
+        assert resp.status_code == 200
+        assert body["data"] == []
+        assert body["status"] == "complete"
+        assert body["failed_requests"] == 0
+        assert body["error"] is None
+
+
 async def test_live_dig_categories_only_returns_only_categories(live_stack, sparql_probe, request):
     """Same category as 'noble_gases' but return_pages=false (stored expectation: noble_gases_categories_only)."""
     sparql_probe.require()

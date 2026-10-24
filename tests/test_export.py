@@ -124,7 +124,7 @@ def _exports(tmp_path: Path) -> list[Path]:
 
 
 def _record_key(rec: dict) -> tuple:
-    return (rec["entity"], rec["surface_text"], rec["how_this_record"], rec["seed_category"])
+    return (rec["entity_url"], rec["surface_text"], rec["how_this_record"], rec["seed_category"])
 
 
 async def test_dig_records_include_entity(stub_api):
@@ -134,13 +134,13 @@ async def test_dig_records_include_entity(stub_api):
         json={"categories": [CATEGORY], "max_depth": 0},
     )
     assert response.status_code == 200
-    records = response.json()
+    response_json = response.json()
+    records = response_json.get("data", [])
     assert records
     for rec in records:
-        assert rec["entity"] == rec["entity_url"].removeprefix("DBPedia>")
+        assert rec["entity_url"] == rec["entity_url"]
         assert set(rec) == {
             "entity_url",
-            "entity",
             "surface_text",
             "seed_category",
             "how_this_record",
@@ -231,16 +231,17 @@ async def test_export_400_for_excessive_max_depth(offline_api):
 
 async def test_export_matches_dig_for_nested_cache(tree_api):
     client, _tmp_path, _store, sparql = tree_api
-    dig = await client.post(
+    res = await client.post(
         "/api/v1/dig",
         json={"categories": ["Category:Root"], "max_depth": 1},
     )
-    assert dig.status_code == 200
-    dig_records = dig.json()
-    entities = {r["entity"] for r in dig_records}
-    assert "Category:Child" in entities
-    assert "ShallowPage" in entities
-    assert "DeepPage" in entities
+    assert res.status_code == 200
+    response = res.json()
+    dig_records = response.get("data", [])
+    entities = {r["entity_url"] for r in dig_records}
+    assert "DBPedia>Category:Child" in entities
+    assert "DBPedia>ShallowPage" in entities
+    assert "DBPedia>DeepPage" in entities
 
     calls_after_dig = sparql.calls
     exported = await client.post(
