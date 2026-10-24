@@ -38,10 +38,9 @@ Status values:
 - complete: All relevant SPARQL requests succeeded.
 - incomplete: Some SPARQL requests failed, but results are available.
 - failed: All relevant attempted SPARQL requests failed.
-
-When the SPARQL budget is exhausted, any available results are returned,
-and X-SPARQL-Budget-Exhausted: true is set in the response headers.
 """
+import asyncio
+import logging
 from typing import Literal, List
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -172,19 +171,11 @@ async def dig(body: DigRequest, request: Request, response: Response) -> DigResp
     # validate the result returned by run_dig against the API schema.
     dig_response = DigResponse.model_validate(result)
 
-    headers = {}
-    if budget.exhausted:
-        headers["X-SPARQL-Budget-Exhausted"] = "true"
-
     if dig_response.status == "failed":
         return JSONResponse(
             status_code=502,
             content=dig_response.model_dump(mode="json"),
-            headers=headers,
         )
-
-    for name, value in headers.items():
-        response.headers[name] = value
 
     return dig_response
 

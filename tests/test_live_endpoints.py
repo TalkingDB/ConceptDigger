@@ -36,7 +36,6 @@ async def test_live_budget_exhausted_header(live_stack, sparql_probe, request):
     if resp is not None:
         body = resp.json()
         assert resp.status_code == 200
-        assert resp.headers["x-sparql-budget-exhausted"] == "true"
         assert body["data"] == []
         assert body["status"] == "complete"
         assert body["failed_requests"] == 0

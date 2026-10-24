@@ -32,16 +32,13 @@ class SparqlBudget:
 
     def __init__(self):
         self.used = 0
+        self.failed = 0
 
     def spend(self, n: int = 1) -> None:
         self.used += n
 
     def record_failure(self, n: int = 1) -> None:
         self.failed += n
-
-    @property
-    def exhausted(self) -> bool:
-        return self.used >= self.limit
 
 
 class HydrationService:
@@ -86,7 +83,6 @@ class HydrationService:
         )
         if ok:
             articles = fetched or []
-            budget.spend(1)
         else:
             structure_complete = False
 
@@ -122,14 +118,6 @@ class HydrationService:
     async def _do_check_category_exists(self, local_name: str, budget: SparqlBudget) -> bool | None:
         if self.store.is_structure_hydrated(local_name):
             return True
-        
-        if not budget.has_room():
-            logger.warning(
-                "budget exhausted before existence check could run: node=%s used=%d limit=%d "
-                "— proceeding as if it exists rather than dropping it",
-                local_name, budget.used, budget.limit,
-            )
-            return True
 
         try:
             budget.spend(1)
@@ -163,67 +151,40 @@ class HydrationService:
         # unmarked so a later /dig retries it instead of leaving it
         # under-enriched forever.
         all_lookups_completed = True
-
-        if budget.has_room():
-            labels, ok = await self._lookup("labels", local_name, self.sparql_client.fetch_labels, budget=budget)
-            if ok:
-                collected += [(label.lower(), SOURCE_LABEL) for label in (labels or [])]
-            else:
-                all_lookups_completed = False
+        
+        labels, ok = await self._lookup("labels", local_name, self.sparql_client.fetch_labels, budget=budget)
+        if ok:
+            collected += [(label.lower(), SOURCE_LABEL) for label in (labels or [])]
         else:
             all_lookups_completed = False
-            logger.warning(
-                "budget ran out before labels lookup: node=%s (used=%d limit=%d)",
-                local_name, budget.used, budget.limit,
-            )
-
-        if budget.has_room():
-            alt_names, ok = await self._lookup("alt-names", local_name, self.sparql_client.fetch_alt_names, budget=budget)
-            if ok:
-                collected += [(name.lower(), SOURCE_ALT_NAME) for name in (alt_names or [])]
-            else:
-                all_lookups_completed = False
+        
+        alt_names, ok = await self._lookup("alt-names", local_name, self.sparql_client.fetch_alt_names, budget=budget)
+        if ok:
+            collected += [(name.lower(), SOURCE_ALT_NAME) for name in (alt_names or [])]
         else:
             all_lookups_completed = False
-            logger.warning(
-                "budget ran out before alt-names lookup: node=%s (used=%d limit=%d)",
-                local_name, budget.used, budget.limit,
-            )
-
-        if budget.has_room():
-            redirect_sources, ok = await self._lookup(
-                "redirects", local_name, self.sparql_client.fetch_redirect_sources, budget=budget
-            )
-            if ok:
-                collected += [
-                    (convert_entity_uri_to_label(s), SOURCE_REDIRECT) for s in (redirect_sources or [])
-                ]
-            else:
-                all_lookups_completed = False
+        
+        redirect_sources, ok = await self._lookup(
+            "redirects", local_name, self.sparql_client.fetch_redirect_sources, budget=budget
+        )
+        if ok:
+            collected += [
+                (convert_entity_uri_to_label(s), SOURCE_REDIRECT) for s in (redirect_sources or [])
+            ]
         else:
             all_lookups_completed = False
-            logger.warning(
-                "budget ran out before redirects lookup: node=%s (used=%d limit=%d)",
-                local_name, budget.used, budget.limit,
-            )
-
-        if budget.has_room():
-            disambig_sources, ok = await self._lookup(
-                "disambiguations", local_name, self.sparql_client.fetch_disambiguation_sources, budget=budget
-            )
-            if ok:
-                collected += [
-                    (convert_entity_uri_to_label(s), SOURCE_DISAMBIGUATION)
-                    for s in (disambig_sources or [])
-                ]
-            else:
-                all_lookups_completed = False
+        
+        disambig_sources, ok = await self._lookup(
+            "disambiguations", local_name, self.sparql_client.fetch_disambiguation_sources, budget=budget
+        )
+        if ok:
+            collected += [
+                (convert_entity_uri_to_label(s), SOURCE_DISAMBIGUATION)
+                for s in (disambig_sources or [])
+            ]
         else:
             all_lookups_completed = False
-            logger.warning(
-                "budget ran out before disambiguations lookup: node=%s (used=%d limit=%d)",
-                local_name, budget.used, budget.limit,
-            )
+        
 
         async with self.store.write_lock():
             self.store.ensure_node(local_name, SOURCE_LABEL)

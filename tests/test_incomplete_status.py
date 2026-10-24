@@ -73,7 +73,3 @@ async def test_structure_query_failure_returns_incomplete_status(tmp_path):
 
     # Confirm that the failing query was attempted.
     assert "subcategories" in stub.calls
-
-    # The budget-exhausted header should be absent unless the budget
-    # was actually exhausted.
-    assert response.headers.get("x-sparql-budget-exhausted") is None
