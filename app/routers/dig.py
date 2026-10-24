@@ -44,7 +44,7 @@ and X-SPARQL-Budget-Exhausted: true is set in the response headers.
 """
 from typing import Literal, List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
