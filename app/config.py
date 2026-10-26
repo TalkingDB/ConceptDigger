@@ -68,6 +68,9 @@ class Settings:
     # are deleted until at most this many remain. 0 disables pruning.
     export_max_files: int = field(default_factory=lambda: _env_int("EXPORT_MAX_FILES", 50))
 
+    elasticsearch_url: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_URL", "http://localhost:9200"))
+    elasticsearch_index: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_INDEX", "train-synonyms"))
+
     port: int = field(default_factory=lambda: _env_int("PORT", 5007))
 
 

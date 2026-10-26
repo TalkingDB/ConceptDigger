@@ -1,0 +1,15 @@
+services:
+  conceptdigger:
+    env_file:
+      - .env
+    volumes:
+      # Plain bind mount. The :cached suffix is a Docker Desktop for Mac option
+      # and is rejected by the Linux Docker engine.
+      - .:/app
+    command: sleep infinity
+
+  elasticsearch:
+    # Linux hosts often have vm.max_map_count below Elasticsearch's default.
+    # Disabling mmap lets DevPod start the same image on Linux, macOS, and Windows.
+    environment:
+      - node.store.allow_mmap=false

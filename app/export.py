@@ -1,5 +1,5 @@
 """
-Writes /dig-format records to JSON files, one per seed category, under an
+Writes /dig-format documents to JSON files, one per seed category, under an
 `exports/` folder next to the graph cache (e.g. data/exports/).
 """
 import json
@@ -7,17 +7,46 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 from uuid import uuid4
 
 from .config import settings
+from .dig import build_documents
 from .graph_store import GraphStore
 
 logger = logging.getLogger(__name__)
 
 
+_STAMP = re.compile(r"_(\d{8}T\d{6}\d*)(?:_[0-9a-fA-F]{8})?\.json$")
+
+
 def export_dir(store: GraphStore) -> str:
     return os.path.join(os.path.dirname(store.cache_file_path) or ".", "exports")
+
+
+def list_export_files(store: GraphStore) -> List[str]:
+    """Export file names, newest first.
+
+    The timestamp embedded in the name is the export time. Files without that
+    stamp fall back to modification time.
+    """
+    directory = export_dir(store)
+    if not os.path.isdir(directory):
+        return []
+
+    def sort_key(name: str) -> str:
+        match = _STAMP.search(name)
+        if match:
+            return match.group(1)
+        mtime = os.path.getmtime(os.path.join(directory, name))
+        return datetime.fromtimestamp(mtime).strftime("%Y%m%dT%H%M%S")
+
+    names = [
+        name for name in os.listdir(directory)
+        if name.endswith(".json") and os.path.isfile(os.path.join(directory, name))
+    ]
+    names.sort(key=sort_key, reverse=True)
+    return names
 
 
 def _prune_old_exports(directory: str, keep: int, protect: List[str]) -> None:
@@ -45,7 +74,7 @@ def _prune_old_exports(directory: str, keep: int, protect: List[str]) -> None:
             logger.warning("could not remove old export %s", path, exc_info=True)
 
 
-def write_exports(store: GraphStore, seeds: List[str], records: List[Dict[str, str]]) -> List[str]:
+def write_exports(store: GraphStore, seeds: List[str], records: List[Dict[str, Any]]) -> List[str]:
     """Write one timestamped file per seed, e.g. Food_ingredients_20261021T153000123456_ab12cd34.json."""
     directory = export_dir(store)
     os.makedirs(directory, exist_ok=True)
@@ -63,7 +92,7 @@ def write_exports(store: GraphStore, seeds: List[str], records: List[Dict[str, s
 
 def collect_from_cache(
     store: GraphStore, seed: str, max_depth: int, return_categories: bool, return_pages: bool,
-) -> List[Dict[str, str]]:
+) -> List[Dict[str, Any]]:
     """Same traversal as /dig, but over cached edges only — no SPARQL."""
     matched: Set[str] = set()
 
@@ -78,14 +107,4 @@ def collect_from_cache(
                 matched.add(child)
 
     walk(seed, 0)
-    return [
-        {
-            "entity_url": f"DBPedia>{uri}",
-            "entity": uri,
-            "surface_text": text,
-            "seed_category": seed,
-            "how_this_record": source,
-        }
-        for uri in matched
-        for text, source in store.synonyms(uri)
-    ]
+    return build_documents(store, ((uri, seed) for uri in matched))

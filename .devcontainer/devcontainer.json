@@ -1,19 +1,30 @@
 {
     "name": "ConceptDigger Dev Environment",
-    "build": {
-        "dockerfile": "../Dockerfile"
-    },
-    "runArgs": [
-        "--env-file", "${localWorkspaceFolder}/.env"
+    "dockerComposeFile": [
+        "../docker-compose.yml",
+        "docker-compose.yml"
     ],
-    "initializeCommand": "test -f \"${localWorkspaceFolder}/.env\" || cp \"${localWorkspaceFolder}/.env.example\" \"${localWorkspaceFolder}/.env\"",
+    "service": "conceptdigger",
+    "workspaceFolder": "/app",
+    "runServices": [
+        "conceptdigger",
+        "elasticsearch"
+    ],
+    "shutdownAction": "stopCompose",
+    "initializeCommand": {
+        "windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"if (!(Test-Path '${localWorkspaceFolder}\\.env')) { Copy-Item '${localWorkspaceFolder}\\.env.example' '${localWorkspaceFolder}\\.env' }\"",
+        "linux": "sh -c 'test -f .env || cp .env.example .env'",
+        "osx": "sh -c 'test -f .env || cp .env.example .env'"
+    },
     "containerEnv": {
         "PORT": "5007",
         "SPARQL_ENDPOINT": "https://dbpedia.org/sparql",
-        "CACHE_FILE_PATH": "data/graph_cache.json"
+        "CACHE_FILE_PATH": "data/graph_cache.json",
+        "ELASTICSEARCH_URL": "http://elasticsearch:9200"
     },
     "forwardPorts": [
-        5007
+        5007,
+        9200
     ],
     "customizations": {
         "vscode": {

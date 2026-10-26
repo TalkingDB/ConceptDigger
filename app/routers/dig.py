@@ -24,9 +24,11 @@ Response body:
     "data": [
         {
             "entity_url": "DBPedia>Sodium_chloride",
-            "surface_text": "sodium chloride",
-            "seed_category": "Category:Example",
-            "how_this_record": "rdfs:label"
+            "entity": "Sodium_chloride",
+            "surface_text": [
+                {"text": "sodium chloride", "how_this_record": "rdfs:label"}
+            ],
+            "seed_category": "Category:Example"
         }
     ],
     "status": "complete",
@@ -34,9 +36,10 @@ Response body:
     "error": null
 }
 
-When export is true, the same records are also written to
+`data` is one grouped document per entity, the shape loaded into Elasticsearch.
+When export is true, those documents are also written to
 data/exports/<Seed>_<timestamp>_<id>.json, one file per seed category.
-A write failure is logged and does not fail /dig.
+A disk error on that write returns 500. The body is the same wrapper, plus `detail`.
 
 POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
 file on demand for a single category; it returns the paths written. Its body
@@ -168,15 +171,17 @@ async def dig(body: DigRequest, request: Request, response: Response) -> DigResp
                 record.model_dump(mode="json")
                 for record in dig_response.data
             ]
-
             await asyncio.to_thread(
                 write_exports,
                 store,
                 [item[0] for item in items],
                 export_records,
             )
-        except Exception:
-            logger.exception("Failed to write /dig export files; returning records anyway")
+        except OSError as exc:
+            logger.exception("Failed to write /dig export files")
+            content = dig_response.model_dump(mode="json")
+            content["detail"] = f"Could not write the export files: {exc}"
+            return JSONResponse(status_code=500, content=content)
 
     return dig_response
 
@@ -188,4 +193,11 @@ async def export(body: ExportRequest, request: Request):
     if not store.has_node(seed):
         raise HTTPException(status_code=404, detail=f"Category not in cache: {seed}")
     records = collect_from_cache(store, seed, max_depth, return_categories=True, return_pages=True)
-    return {"files": await asyncio.to_thread(write_exports, store, [seed], records)}
+    try:
+        files = await asyncio.to_thread(write_exports, store, [seed], records)
+    except OSError as exc:
+        logger.exception("Failed to write /export file")
+        raise HTTPException(
+            status_code=500, detail=f"Could not write the export file: {exc}",
+        ) from exc
+    return {"files": files}

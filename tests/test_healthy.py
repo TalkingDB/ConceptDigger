@@ -7,7 +7,7 @@ async def test_healthy(tmp_path):
     assert body["status"] == "complete"
     assert body["failed_requests"] == 0
     assert body["error"] is None
-    assert {x["surface_text"] for x in body["data"]} == {
+    assert {form["text"] for doc in body["data"] for form in doc["surface_text"]} == {
         "sodium chloride",
         "nacl",
     }

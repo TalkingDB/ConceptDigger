@@ -28,6 +28,7 @@ from starlette.datastructures import State
 
 from app.category import parse_category_url, parse_resource_url
 from app.config import settings
+from app.dig import DigResponse
 from app.graph_store import GraphStore
 from app.hydration import HydrationService
 from app.main import app
@@ -364,22 +365,41 @@ async def attempt(coro) -> tuple[Any, str | None, bool]:
 
 
 def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
-    """Turn one cached node's synonyms into the same record shape /dig returns."""
+    """Turn one cached node's synonyms into the same document shape /dig returns."""
     nodes = graph_body.get("nodes") if isinstance(graph_body, dict) else None
     node = next((n for n in nodes or [] if n.get("id") == local_name), None)
-    records = []
-    for pair in (node or {}).get("synonyms") or []:
-        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-            continue
-        text, source = pair
-        records.append({
-            "entity_url": f"DBPedia>{local_name}",
-            "entity": local_name,
-            "surface_text": text,
-            "seed_category": local_name,
-            "how_this_record": source,
-        })
-    return records
+    surface_text = [
+        {"text": pair[0], "how_this_record": pair[1]}
+        for pair in (node or {}).get("synonyms") or []
+        if isinstance(pair, (list, tuple)) and len(pair) == 2
+    ]
+    if not surface_text:
+        return []
+    return [{
+        "entity_url": f"DBPedia>{local_name}",
+        "entity": local_name,
+        "surface_text": surface_text,
+        "seed_category": local_name,
+    }]
+
+
+def dig_response(documents: list[dict], *, used: int, failed: int) -> dict:
+    """Wrap documents in the POST /api/v1/dig envelope. Status follows run_dig."""
+    if used > 0 and failed == used and not documents:
+        status = "failed"
+        error = f"All {failed} SPARQL requests failed. Unable to retrieve results."
+    elif failed:
+        status = "incomplete"
+        error = f"{failed} SPARQL requests failed. The returned results may be incomplete."
+    else:
+        status = "complete"
+        error = None
+    return DigResponse(
+        data=documents,
+        status=status,
+        failed_requests=failed,
+        error=error,
+    ).model_dump(mode="json")
 
 
 async def _call_case(stack: LiveStack, case: Case, run: CaseRun) -> None:
@@ -405,7 +425,14 @@ async def _call_case(stack: LiveStack, case: Case, run: CaseRun) -> None:
         except ValueError:
             run.raw_text = graph.text[:2000]
             return
-        run.body = synonym_records(case.local_name, graph_body) if graph.status_code == 200 else graph_body
+        if graph.status_code != 200:
+            run.body = graph_body
+            return
+        run.body = dig_response(
+            synonym_records(case.local_name, graph_body),
+            used=len(stack.recorder.calls),
+            failed=len(stack.recorder.failed_calls),
+        )
         return
 
     resp = await stack.api.post("/api/v1/dig", json=case.request_body)

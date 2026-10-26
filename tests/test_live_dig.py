@@ -17,7 +17,7 @@ live SPARQL call in flight at a time. No mocked SPARQL data is involved.
 """
 import pytest
 
-from tests.expectations import conclude, dig_checks, raise_for_verdict
+from tests.expectations import conclude, dig_checks, flatten_documents, raise_for_verdict
 from tests.live_harness import get_case, load_cases, load_expected
 from tests.reporting import LiveView, register_view
 
@@ -40,23 +40,15 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
         status_code=run.status_code,
     )
     response = run.body
-
-    records = []
-    if isinstance(response, dict):
-        data = response.get("data")
-        records = (
-            data
-            if isinstance(data, list)
-            and all(isinstance(r, dict) for r in data)
-            else []
-        )
-    elif isinstance(response, list):
-        # ensuring backward compatibility with the old response format.
-        records = (
-            response
-            if all(isinstance(r, dict) for r in response)
-            else []
-        )
+    data = response.get("data") if isinstance(response, dict) else None
+    grouped = (
+        data
+        if isinstance(data, list) and data and isinstance(data[0].get("surface_text"), list)
+        else None
+    )
+    records = flatten_documents(grouped) if grouped is not None else (
+        data if isinstance(data, list) else []
+    )
    
     register_view(
         request.node.nodeid,

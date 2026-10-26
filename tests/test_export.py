@@ -18,9 +18,9 @@ from app.main import app
 CATEGORY = "Category:Noble_gases"
 RECORD = {
     "entity_url": "DBPedia>Helium",
-    "surface_text": "helium",
+    "entity": "Helium",
+    "surface_text": [{"text": "helium", "how_this_record": "rdfs:label"}],
     "seed_category": CATEGORY,
-    "how_this_record": "rdfs:label",
 }
 
 TREE = {
@@ -123,7 +123,8 @@ def _exports(tmp_path: Path) -> list[Path]:
 
 
 def _record_key(rec: dict) -> tuple:
-    return (rec["entity_url"], rec["surface_text"], rec["how_this_record"], rec["seed_category"])
+    forms = tuple((form["text"], form["how_this_record"]) for form in rec["surface_text"])
+    return (rec["entity"], forms, rec["seed_category"])
 
 
 async def test_dig_records_include_entity(stub_api):
@@ -137,13 +138,15 @@ async def test_dig_records_include_entity(stub_api):
     records = response_json.get("data", [])
     assert records
     for rec in records:
-        assert rec["entity_url"] == rec["entity_url"]
+        assert rec["entity_url"] == f"DBPedia>{rec['entity']}"
         assert set(rec) == {
             "entity_url",
+            "entity",
             "surface_text",
             "seed_category",
-            "how_this_record",
         }
+        assert rec["surface_text"]
+        assert all(set(form) == {"text", "how_this_record"} for form in rec["surface_text"])
 
 
 async def test_dig_does_not_export_by_default(stub_api):
@@ -171,7 +174,7 @@ async def test_dig_export_true_writes_file(stub_api):
     assert all("entity_url" in rec for rec in payload)
 
 
-async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch):
+async def test_dig_reports_when_export_write_fails(stub_api, monkeypatch):
     client, tmp_path, _store, _sparql = stub_api
 
     def boom(*_args, **_kwargs):
@@ -182,9 +185,28 @@ async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0, "export": True},
     )
-    assert response.status_code == 200
-    assert response.json()
+    assert response.status_code == 500
+    body = response.json()
+    assert body["detail"] == "Could not write the export files: disk full"
+    assert body["status"] == "complete"
+    assert body["data"]
     assert _exports(tmp_path) == []
+
+
+async def test_export_reports_when_write_fails(stub_api, monkeypatch):
+    client, _tmp_path, _store, _sparql = stub_api
+    await client.post("/api/v1/dig", json={"categories": [CATEGORY], "max_depth": 0})
+
+    def boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("app.routers.dig.write_exports", boom)
+    response = await client.post(
+        "/api/v1/export",
+        json={"category": CATEGORY, "max_depth": 0},
+    )
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Could not write the export file: disk full"
 
 
 async def test_export_endpoint_writes_file(stub_api):
@@ -254,24 +276,7 @@ async def test_export_matches_dig_for_nested_cache(tree_api):
     files = exported.json()["files"]
     assert len(files) == 1
     export_records = json.loads(Path(files[0]).read_text(encoding="utf-8"))
-    shared_fields = {
-        "entity_url",
-        "surface_text",
-        "seed_category",
-        "how_this_record",
-    }
-
-    normalized_export = [
-        {key: record[key] for key in shared_fields if key in record}
-        for record in export_records
-    ]
-
-    normalized_dig = [
-        {key: record[key] for key in shared_fields if key in record}
-        for record in dig_records
-    ]
-
-    assert sorted(normalized_export, key=_record_key) == sorted(normalized_dig, key=_record_key)
+    assert sorted(export_records, key=_record_key) == sorted(dig_records, key=_record_key)
 
 
 async def test_multiple_seeds_write_separate_files(multi_api):

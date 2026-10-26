@@ -9,7 +9,8 @@ categories are being *returned*, since a category might still contain pages
 deeper down that should be returned.
 """
 import logging
-from typing import Dict, List, Set, Tuple, Literal
+from typing import Any, Dict, Iterable, List, Literal, Set, Tuple
+
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
@@ -21,11 +22,16 @@ logger = logging.getLogger(__name__)
 
 DigItem = Tuple[str, int, int, int]
 
+class SurfaceForm(BaseModel):
+    text: str
+    how_this_record: str
+
+
 class DigResultItem(BaseModel):
     entity_url: str
-    surface_text: str
+    entity: str
+    surface_text: List[SurfaceForm]
     seed_category: str
-    how_this_record: str
 
 
 class DigResponse(BaseModel):
@@ -86,31 +92,24 @@ async def _enumerate_descendants(
                     await hydration.hydrate_synonyms(child, budget)
 
 
-def _prepare_output_legacy(store: GraphStore, matched: Set[str]) -> List[Dict[str, str]]:
-    output = []
-    for uri in matched:
-        for text, source in store.synonyms(uri):
-            output.append({
-                "entity_url": f"DBPedia>{uri}",
-                "entity": uri,
-                "surface_text": text,
-                "seed_category": uri,
-                "how_this_record": source,
-            })
-    return output
-
-
-def _prepare_output_fixed(store: GraphStore, matched: Set[Tuple[str, str]]) -> List[Dict[str, str]]:
+def build_documents(store: GraphStore, matched: Iterable[Tuple[str, str]]) -> List[Dict[str, Any]]:
+    """One document per (entity, seed) with all of its synonyms grouped under
+    surface_text — the shape loaded into Elasticsearch. Entities without any
+    synonym are left out, as they have nothing to match on."""
     output = []
     for uri, seed in matched:
-        for text, source in store.synonyms(uri):
-            output.append({
-                "entity_url": f"DBPedia>{uri}",
-                "entity": uri,
-                "surface_text": text,
-                "seed_category": seed,
-                "how_this_record": source,
-            })
+        surface_text = [
+            {"text": text, "how_this_record": source}
+            for text, source in store.synonyms(uri)
+        ]
+        if not surface_text:
+            continue
+        output.append({
+            "entity_url": f"DBPedia>{uri}",
+            "entity": uri,
+            "surface_text": surface_text,
+            "seed_category": seed,
+        })
     return output
 
 
@@ -173,12 +172,11 @@ async def run_dig(
         len(items), len(all_uris), budget.used,
     )
 
-    digged_data = []
     if fixed:
-        digged_data = _prepare_output_fixed(store, matched_fixed)
+        digged_data = build_documents(store, matched_fixed)
     else:
-        digged_data = _prepare_output_legacy(store, matched_legacy)
-    
+        digged_data = build_documents(store, ((uri, uri) for uri in matched_legacy))
+
     no_queries_failed = budget.failed == 0
     all_queries_failed = budget.used > 0 and budget.failed == budget.used and len(digged_data) == 0
 
@@ -186,16 +184,15 @@ async def run_dig(
         status = "failed"
         error = f"All {budget.failed} SPARQL requests failed. Unable to retrieve results."
     elif not no_queries_failed:
-        # Some queries failed, but some succeeded or cache data was gathered -> incomplete
         status = "incomplete"
         error = f"{budget.failed} SPARQL requests failed. The returned results may be incomplete."
     else:
         status = "complete"
         error = None
-    
-    return {
-        "data": digged_data,
-        "status": status,
-        "failed_requests": budget.failed,
-        "error": error,
-    }
+
+    return DigResponse(
+        data=digged_data,
+        status=status,
+        failed_requests=budget.failed,
+        error=error,
+    )

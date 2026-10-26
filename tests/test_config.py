@@ -9,6 +9,8 @@ EMPTY_ENV = [
     "SPARQL_MAX_RETRIES",
     "CACHE_FILE_PATH",
     "EXPORT_MAX_FILES",
+    "ELASTICSEARCH_URL",
+    "ELASTICSEARCH_INDEX",
     "PORT",
 ]
 
@@ -24,6 +26,8 @@ def test_empty_env_values_use_defaults(monkeypatch):
     assert cfg.sparql_max_retries == 3
     assert cfg.cache_file_path == "data/graph_cache.json"
     assert cfg.export_max_files == 50
+    assert cfg.elasticsearch_url == "http://localhost:9200"
+    assert cfg.elasticsearch_index == "train-synonyms"
     assert cfg.port == 5007
 
 
