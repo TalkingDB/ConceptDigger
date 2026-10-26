@@ -7,10 +7,11 @@ now only one dig endpoint and it's always correct).
 
 Request body:
 {
-  "categories": ["Category:Birds", "Category:Fish"],
-  "max_depth": 2,
-  "return_categories": true,
-  "return_pages": true
+    "categories": ["Category:Birds", "Category:Fish"],
+    "max_depth": 2,
+    "return_categories": true,
+    "return_pages": true,
+    "export": false
 }
 
 max_depth / return_categories / return_pages apply to every category in the
@@ -20,7 +21,7 @@ MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
 Response body: a JSON array with one document per (entity, seed category):
 {entity_url, entity, surface_text: [{text, how_this_record}], seed_category}
-— the shape loaded into Elasticsearch. The same documents are also written to data/exports/<Seed>_<timestamp>.json, one file per
+— the shape loaded into Elasticsearch. When export is true, the same documents are also written to data/exports/<Seed>_<timestamp>_<id>.json, one file per
 seed category.
 
 POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
@@ -32,6 +33,8 @@ always included):
   "max_depth": 2
 }
 """
+import asyncio
+import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
@@ -42,6 +45,8 @@ from ..config import settings
 from ..dig import run_dig
 from ..export import collect_from_cache, write_exports
 from ..hydration import SparqlBudget
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["dig"])
 
@@ -62,6 +67,10 @@ class DigRequest(BaseModel):
     )
     return_categories: bool = Field(True, description="Include matched subcategories in the output.")
     return_pages: bool = Field(True, description="Include matched member articles in the output.")
+    export: bool = Field(
+        False,
+        description="If true, also write JSON files under data/exports/. Default false.",
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -70,6 +79,7 @@ class DigRequest(BaseModel):
                 "max_depth": 2,
                 "return_categories": True,
                 "return_pages": True,
+                "export": False,
             }
         }
     }
@@ -117,7 +127,11 @@ async def dig(body: DigRequest, request: Request):
     ]
 
     records = await run_dig(hydration, store, items, budget, fixed=True)
-    write_exports(store, [item[0] for item in items], records)
+    if body.export:
+        try:
+            await asyncio.to_thread(write_exports, store, [item[0] for item in items], records)
+        except Exception:
+            logger.exception("Failed to write /dig export files; returning records anyway")
     return records
 
 
@@ -129,4 +143,4 @@ async def export(body: ExportRequest, request: Request):
     if not store.has_node(seed):
         raise HTTPException(status_code=404, detail=f"Category not in cache: {seed}")
     records = collect_from_cache(store, seed, max_depth, return_categories=True, return_pages=True)
-    return {"files": write_exports(store, [seed], records)}
+    return {"files": await asyncio.to_thread(write_exports, store, [seed], records)}

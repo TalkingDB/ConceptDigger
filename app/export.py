@@ -3,16 +3,21 @@ Writes /dig-format documents to JSON files, one per seed category, under an
 `exports/` folder next to the graph cache (e.g. data/exports/).
 """
 import json
+import logging
 import os
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Set
+from uuid import uuid4
 
+from .config import settings
 from .dig import build_documents
 from .graph_store import GraphStore
 
+logger = logging.getLogger(__name__)
 
-_STAMP = re.compile(r"_(\d{8}T\d{6})\.json$")
+
+_STAMP = re.compile(r"_(\d{8}T\d{6}\d*)(?:_[0-9a-fA-F]{8})?\.json$")
 
 
 def export_dir(store: GraphStore) -> str:
@@ -22,8 +27,8 @@ def export_dir(store: GraphStore) -> str:
 def list_export_files(store: GraphStore) -> List[str]:
     """Export file names, newest first.
 
-    The timestamp embedded in the name (`Seed_YYYYmmddTHHMMSS.json`) is the
-    export time. Files without that stamp fall back to modification time.
+    The timestamp embedded in the name is the export time. Files without that
+    stamp fall back to modification time.
     """
     directory = export_dir(store)
     if not os.path.isdir(directory):
@@ -44,18 +49,44 @@ def list_export_files(store: GraphStore) -> List[str]:
     return names
 
 
+def _prune_old_exports(directory: str, keep: int, protect: List[str]) -> None:
+    """Keep the newest `keep` files; never delete files written in this call."""
+    if keep <= 0:
+        return
+    try:
+        files = [
+            os.path.join(directory, name)
+            for name in os.listdir(directory)
+            if name.endswith(".json")
+        ]
+    except OSError:
+        logger.exception("export cleanup could not list %s", directory)
+        return
+    protected = {os.path.abspath(path) for path in protect}
+    files.sort(key=os.path.getmtime, reverse=True)
+    keep_set = {os.path.abspath(path) for path in files[:keep]} | protected
+    for path in files:
+        if os.path.abspath(path) in keep_set:
+            continue
+        try:
+            os.remove(path)
+        except OSError:
+            logger.warning("could not remove old export %s", path, exc_info=True)
+
+
 def write_exports(store: GraphStore, seeds: List[str], records: List[Dict[str, Any]]) -> List[str]:
-    """Write one timestamped file per seed, e.g. Food_ingredients_20261021T153000.json."""
+    """Write one timestamped file per seed, e.g. Food_ingredients_20261021T153000123456_ab12cd34.json."""
     directory = export_dir(store)
     os.makedirs(directory, exist_ok=True)
-    stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     paths = []
     for seed in dict.fromkeys(seeds):
         name = re.sub(r"[^\w.-]", "_", seed.removeprefix("Category:"))
-        path = os.path.join(directory, f"{name}_{stamp}.json")
+        path = os.path.join(directory, f"{name}_{stamp}_{uuid4().hex[:8]}.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump([r for r in records if r["seed_category"] == seed], f, ensure_ascii=False, indent=2)
         paths.append(path)
+    _prune_old_exports(directory, settings.export_max_files, paths)
     return paths
 
 
