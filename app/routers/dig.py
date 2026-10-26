@@ -177,6 +177,22 @@ async def dig(body: DigRequest, request: Request, response: Response) -> DigResp
             content=dig_response.model_dump(mode="json"),
         )
 
+    if body.export:
+        try:
+            export_records = [
+                record.model_dump(mode="json")
+                for record in dig_response.data
+            ]
+
+            await asyncio.to_thread(
+                write_exports,
+                store,
+                [item[0] for item in items],
+                export_records,
+            )
+        except Exception:
+            logger.exception("Failed to write /dig export files; returning records anyway")
+
     return dig_response
 
 @router.post("/export")

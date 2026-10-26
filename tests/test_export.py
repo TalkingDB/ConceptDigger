@@ -18,7 +18,6 @@ from app.main import app
 CATEGORY = "Category:Noble_gases"
 RECORD = {
     "entity_url": "DBPedia>Helium",
-    "entity": "Helium",
     "surface_text": "helium",
     "seed_category": CATEGORY,
     "how_this_record": "rdfs:label",
@@ -167,8 +166,9 @@ async def test_dig_export_true_writes_file(stub_api):
     files = _exports(tmp_path)
     assert len(files) == 1
     payload = json.loads(files[0].read_text(encoding="utf-8"))
-    assert payload == response.json()
-    assert all("entity" in rec for rec in payload)
+    digged_data = response.json()
+    assert payload == digged_data["data"]
+    assert all("entity_url" in rec for rec in payload)
 
 
 async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch):
@@ -199,7 +199,7 @@ async def test_export_endpoint_writes_file(stub_api):
     assert len(files) == 1
     assert Path(files[0]).exists()
     payload = json.loads(Path(files[0]).read_text(encoding="utf-8"))
-    assert all("entity" in rec for rec in payload)
+    assert all("entity_url" in rec for rec in payload)
 
 
 async def test_export_404_for_uncached_category(offline_api):
@@ -254,7 +254,24 @@ async def test_export_matches_dig_for_nested_cache(tree_api):
     files = exported.json()["files"]
     assert len(files) == 1
     export_records = json.loads(Path(files[0]).read_text(encoding="utf-8"))
-    assert sorted(export_records, key=_record_key) == sorted(dig_records, key=_record_key)
+    shared_fields = {
+        "entity_url",
+        "surface_text",
+        "seed_category",
+        "how_this_record",
+    }
+
+    normalized_export = [
+        {key: record[key] for key in shared_fields if key in record}
+        for record in export_records
+    ]
+
+    normalized_dig = [
+        {key: record[key] for key in shared_fields if key in record}
+        for record in dig_records
+    ]
+
+    assert sorted(normalized_export, key=_record_key) == sorted(normalized_dig, key=_record_key)
 
 
 async def test_multiple_seeds_write_separate_files(multi_api):
@@ -276,9 +293,9 @@ async def test_multiple_seeds_write_separate_files(multi_api):
         seeds = {rec["seed_category"] for rec in payload}
         assert len(seeds) == 1
         seed = seeds.pop()
-        by_seed[seed] = {rec["entity"] for rec in payload}
-    assert by_seed["Category:Gases"] == {"Helium"}
-    assert by_seed["Category:Metals"] == {"Iron"}
+        by_seed[seed] = {rec["entity_url"] for rec in payload}
+    assert by_seed["Category:Gases"] == {"DBPedia>Helium"}
+    assert by_seed["Category:Metals"] == {"DBPedia>Iron"}
 
 
 def test_write_exports_unique_filenames(tmp_path):

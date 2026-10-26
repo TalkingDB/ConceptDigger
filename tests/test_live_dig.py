@@ -41,6 +41,7 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
     )
     response = run.body
 
+    records = []
     if isinstance(response, dict):
         data = response.get("data")
         records = (
@@ -56,9 +57,7 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
             if all(isinstance(r, dict) for r in response)
             else []
         )
-    else:
-        records = []
-
+   
     register_view(
         request.node.nodeid,
         LiveView(

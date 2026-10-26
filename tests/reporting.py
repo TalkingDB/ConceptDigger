@@ -133,12 +133,12 @@ def _actual_table(records: list[dict], expected_keys: set[tuple]) -> str:
     for r in records[:MAX_TABLE_ROWS]:
         key = (r.get("entity_url"), r.get("surface_text"), r.get("how_this_record"))
         mark = "✔ expected" if key in expected_keys else ""
-        rows.append([esc(r.get("entity_url", "")), esc(r.get("entity", "")), esc(r.get("surface_text", "")),
+        rows.append([esc(r.get("entity_url", "")), esc(r.get("surface_text", "")),
                      esc(r.get("how_this_record", "")), esc(r.get("seed_category", "")), mark])
     note = ""
     if len(records) > MAX_TABLE_ROWS:
         note = f"<p><em>Showing first {MAX_TABLE_ROWS} of {len(records)} records.</em></p>"
-    return note + _table(["entity_url", "entity", "surface_text", "how_this_record", "seed_category", "matches expected"], rows)
+    return note + _table(["entity_url", "surface_text", "how_this_record", "seed_category", "matches expected"], rows)
 
 
 def render_view(v: LiveView) -> str:

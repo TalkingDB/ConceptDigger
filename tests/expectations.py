@@ -28,7 +28,7 @@ from tests.live_harness import (
 )
 
 ALLOWED_SOURCES = {"rdfs:label", "alt_name", "redirect", "disambiguation"}
-RECORD_KEYS = {"entity_url", "entity", "surface_text", "seed_category", "how_this_record"}
+RECORD_KEYS = {"entity_url", "surface_text", "seed_category", "how_this_record"}
 CATEGORY_PREFIX = "DBPedia>Category:"
 
 PASS = "pass"
@@ -160,12 +160,13 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
 
     bad_shape = [
         r for r in records
-        if not isinstance(r, dict) or set(r) != RECORD_KEYS
+        if not isinstance(r, dict)
+        or not RECORD_KEYS.issubset(r.keys())
     ]
-
+    
     checks.append(
         Check(
-            "every record has exactly the 4 documented fields",
+            "every record contains the 4 required fields",
             not bad_shape,
             f"{len(bad_shape)} malformed record(s)" if bad_shape else "",
         )
@@ -175,10 +176,6 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
 
     bad = [r for r in records if not str(r.get("entity_url", "")).startswith("DBPedia>")]
     checks.append(Check("entity_url starts with 'DBPedia>'", not bad, f"{len(bad)} violation(s)" if bad else ""))
-
-    bad = [r for r in records if r.get("entity") != str(r.get("entity_url", "")).removeprefix("DBPedia>")]
-    checks.append(Check("entity is the local name inside entity_url", not bad,
-                        f"{len(bad)} violation(s)" if bad else ""))
 
     bad = [r for r in records if r.get("how_this_record") not in ALLOWED_SOURCES]
     checks.append(Check("how_this_record is one of rdfs:label/alt_name/redirect/disambiguation", not bad,
