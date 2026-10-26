@@ -34,6 +34,15 @@ Response body:
     "error": null
 }
 
+When export is true, the same records are also written to
+data/exports/<Seed>_<timestamp>_<id>.json, one file per seed category.
+A write failure is logged and does not fail /dig.
+
+POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
+file on demand for a single category; it returns the paths written. Its body
+is just the category and an optional max_depth (categories and pages are
+always included):
+
 Status values:
 - complete: All relevant SPARQL requests succeeded.
 - incomplete: Some SPARQL requests failed, but results are available.

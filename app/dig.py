@@ -155,17 +155,18 @@ async def run_dig(
         digged_data = _prepare_output_legacy(store, matched_legacy)
     
     no_queries_failed = budget.failed == 0
-    all_queries_failed = budget.used > 0 and budget.failed == budget.used
+    all_queries_failed = budget.used > 0 and budget.failed == budget.used and len(digged_data) == 0
 
-    if no_queries_failed:
-        status = "complete"
-        error = None
-    elif all_queries_failed:
+    if all_queries_failed:
         status = "failed"
         error = f"All {budget.failed} SPARQL requests failed. Unable to retrieve results."
-    else:
+    elif not no_queries_failed:
+        # Some queries failed, but some succeeded or cache data was gathered -> incomplete
         status = "incomplete"
         error = f"{budget.failed} SPARQL requests failed. The returned results may be incomplete."
+    else:
+        status = "complete"
+        error = None
     
     return {
         "data": digged_data,
