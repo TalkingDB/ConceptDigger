@@ -9,8 +9,9 @@ categories are being *returned*, since a category might still contain pages
 deeper down that should be returned.
 """
 import logging
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Literal
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 
 from .config import settings
 from .graph_store import GraphStore
@@ -19,6 +20,30 @@ from .hydration import HydrationService, SparqlBudget
 logger = logging.getLogger(__name__)
 
 DigItem = Tuple[str, int, int, int]
+
+class DigResultItem(BaseModel):
+    entity_url: str
+    surface_text: str
+    seed_category: str
+    how_this_record: str
+
+
+class DigResponse(BaseModel):
+    data: List[DigResultItem] = Field(
+        default_factory=list,
+        description="Retrieved entities and their surface forms.",
+    )
+    status: Literal["complete", "incomplete", "failed"] = Field(
+        description="Whether the retrieval completed successfully.",
+    )
+    failed_requests: int = Field(
+        ge=0,
+        description="Number of SPARQL requests that failed.",
+    )
+    error: str | None = Field(
+        default=None,
+        description="Error message when retrieval failed or was incomplete.",
+    )
 
 
 async def _enumerate_descendants(
@@ -95,7 +120,7 @@ async def run_dig(
     items: List[DigItem],
     budget: SparqlBudget,
     fixed: bool,
-) -> List[Dict[str, str]]:
+) -> DigResponse:
     matched_legacy: Set[str] = set()
     matched_fixed: Set[Tuple[str, str]] = set()
 

@@ -50,7 +50,7 @@ Status values:
 """
 import asyncio
 import logging
-from typing import Literal, List
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -58,7 +58,7 @@ from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
 from ..config import settings
-from ..dig import run_dig
+from ..dig import run_dig, DigResponse
 from ..export import collect_from_cache, write_exports
 from ..hydration import SparqlBudget
 
@@ -123,30 +123,6 @@ class ExportRequest(BaseModel):
             }
         }
     }
-
-class DigResultItem(BaseModel):
-    entity_url: str
-    surface_text: str
-    seed_category: str
-    how_this_record: str
-
-
-class DigResponse(BaseModel):
-    data: List[DigResultItem] = Field(
-        default_factory=list,
-        description="Retrieved entities and their surface forms.",
-    )
-    status: Literal["complete", "incomplete", "failed"] = Field(
-        description="Whether the retrieval completed successfully.",
-    )
-    failed_requests: int = Field(
-        ge=0,
-        description="Number of SPARQL requests that failed.",
-    )
-    error: str | None = Field(
-        default=None,
-        description="Error message when retrieval failed or was incomplete.",
-    )
 
 
 @router.post(
