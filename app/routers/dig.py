@@ -19,31 +19,49 @@ batch (this is a change from the old per-item-tuple protocol, where each
 category could carry its own depth/flags). max_depth may not exceed
 MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
-Response body: a JSON array with one document per (entity, seed category):
-{entity_url, entity, surface_text: [{text, how_this_record}], seed_category}
-— the shape loaded into Elasticsearch. When export is true, the same documents are also written to data/exports/<Seed>_<timestamp>_<id>.json, one file per
-seed category. A disk error on that write returns 500 with `detail` and the documents in `records`.
+Response body:
+{
+    "data": [
+        {
+            "entity_url": "DBPedia>Sodium_chloride",
+            "entity": "Sodium_chloride",
+            "surface_text": [
+                {"text": "sodium chloride", "how_this_record": "rdfs:label"}
+            ],
+            "seed_category": "Category:Example"
+        }
+    ],
+    "status": "complete",
+    "failed_requests": 0,
+    "error": null
+}
+
+`data` is one grouped document per entity, the shape loaded into Elasticsearch.
+When export is true, those documents are also written to
+data/exports/<Seed>_<timestamp>_<id>.json, one file per seed category.
+A disk error on that write returns 500. The body is the same wrapper, plus `detail`.
 
 POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
 file on demand for a single category; it returns the paths written. Its body
 is just the category and an optional max_depth (categories and pages are
 always included):
-{
-  "category": "http://dbpedia.org/resource/Category:Food_ingredients",
-  "max_depth": 2
-}
+
+Status values:
+- complete: All relevant SPARQL requests succeeded.
+- incomplete: Some SPARQL requests failed, but results are available.
+- failed: All relevant attempted SPARQL requests failed.
 """
 import asyncio
 import logging
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
 from ..config import settings
-from ..dig import run_dig
+from ..dig import run_dig, DigResponse
 from ..export import collect_from_cache, write_exports
 from ..hydration import SparqlBudget
 
@@ -110,8 +128,17 @@ class ExportRequest(BaseModel):
     }
 
 
-@router.post("/dig")
-async def dig(body: DigRequest, request: Request):
+@router.post(
+    "/dig", 
+    response_model=DigResponse,
+    responses={
+        502: {
+            "model": DigResponse,
+            "description": "All relevant attempted SPARQL requests failed."
+        }
+    }
+)
+async def dig(body: DigRequest, request: Request, response: Response) -> DigResponse | JSONResponse:
     store = request.app.state.store
     hydration = request.app.state.hydration
     budget = SparqlBudget()
@@ -127,21 +154,36 @@ async def dig(body: DigRequest, request: Request):
         for category in body.categories
     ]
 
-    records = await run_dig(hydration, store, items, budget, fixed=True)
+    result = await run_dig(hydration, store, items, budget, fixed=True)
+   
+    # validate the result returned by run_dig against the API schema.
+    dig_response = DigResponse.model_validate(result)
+
+    if dig_response.status == "failed":
+        return JSONResponse(
+            status_code=502,
+            content=dig_response.model_dump(mode="json"),
+        )
+
     if body.export:
         try:
-            await asyncio.to_thread(write_exports, store, [item[0] for item in items], records)
+            export_records = [
+                record.model_dump(mode="json")
+                for record in dig_response.data
+            ]
+            await asyncio.to_thread(
+                write_exports,
+                store,
+                [item[0] for item in items],
+                export_records,
+            )
         except OSError as exc:
             logger.exception("Failed to write /dig export files")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "detail": f"Could not write the export files: {exc}",
-                    "records": records,
-                },
-            )
-    return records
+            content = dig_response.model_dump(mode="json")
+            content["detail"] = f"Could not write the export files: {exc}"
+            return JSONResponse(status_code=500, content=content)
 
+    return dig_response
 
 @router.post("/export")
 async def export(body: ExportRequest, request: Request):

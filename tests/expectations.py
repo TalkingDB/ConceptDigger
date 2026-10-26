@@ -86,28 +86,55 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
     )
 
     if want_status != 200:
-        needle = expected.get("detail_contains")
-        detail = run.body.get("detail") if isinstance(run.body, dict) else None
+        needle = expected.get("error_contains", expected.get("detail_contains"))
+
+        error = None
+        if isinstance(run.body, dict):
+            error = run.body.get("error") or run.body.get("detail")
+
         if needle is not None:
             checks.append(
                 Check(
-                    f"error detail contains {needle!r}",
-                    isinstance(detail, str) and needle in detail,
-                    f"actual detail: {detail!r}",
+                    f"error contains {needle!r}",
+                    isinstance(error, str) and needle in error,
+                    f"actual error: {error!r}",
                 )
             )
         return checks
 
     body = run.body
-    if not isinstance(body, list):
-        checks.append(Check("response is a JSON array", False, f"actual: {type(body).__name__}"))
+    if not isinstance(body, dict) or not isinstance(body.get("data"), list):
+        checks.append(Check("response has a data array", False, f"actual: {type(body).__name__}"))
         return checks
-    checks.append(Check("response is a JSON array", True, f"{len(body)} document(s)"))
 
-    bad_shape = [d for d in body if not isinstance(d, dict) or set(d) != DOCUMENT_KEYS]
+    response_status = body.get("status")
+    failed_requests = body.get("failed_requests")
+    error = body.get("error")
+    checks.append(Check(
+        "status is valid",
+        response_status in {"complete", "incomplete", "failed"},
+        f"actual: {response_status!r}",
+    ))
+    checks.append(Check(
+        "failed_requests is a non-negative integer",
+        type(failed_requests) is int and failed_requests >= 0,
+        f"actual: {failed_requests!r}",
+    ))
+    if response_status == "complete":
+        checks.append(Check("complete response has no error", error is None, f"actual error: {error!r}"))
+    elif response_status in {"incomplete", "failed"}:
+        checks.append(Check(
+            f"{response_status} response has an error message",
+            isinstance(error, str) and bool(error.strip()),
+            f"actual error: {error!r}",
+        ))
+
+    docs = [d for d in body["data"] if isinstance(d, dict)]
+    checks.append(Check("data is a list of documents", len(docs) == len(body["data"]), f"{len(docs)} document(s)"))
+
+    bad_shape = [d for d in docs if set(d) != DOCUMENT_KEYS]
     checks.append(Check("every document has exactly the 4 documented fields", not bad_shape,
                         f"{len(bad_shape)} malformed document(s)" if bad_shape else ""))
-    docs = [d for d in body if isinstance(d, dict)]
 
     bad = [d for d in docs if d.get("entity_url") != f"DBPedia>{d.get('entity')}"]
     checks.append(Check("entity_url is 'DBPedia>' + entity", not bad, f"{len(bad)} violation(s)" if bad else ""))

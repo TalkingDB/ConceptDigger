@@ -9,8 +9,10 @@ categories are being *returned*, since a category might still contain pages
 deeper down that should be returned.
 """
 import logging
-from typing import Any, Dict, Iterable, List, Set, Tuple
+from typing import Any, Dict, Iterable, List, Literal, Set, Tuple
+
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 
 from .config import settings
 from .graph_store import GraphStore
@@ -19,6 +21,35 @@ from .hydration import HydrationService, SparqlBudget
 logger = logging.getLogger(__name__)
 
 DigItem = Tuple[str, int, int, int]
+
+class SurfaceForm(BaseModel):
+    text: str
+    how_this_record: str
+
+
+class DigResultItem(BaseModel):
+    entity_url: str
+    entity: str
+    surface_text: List[SurfaceForm]
+    seed_category: str
+
+
+class DigResponse(BaseModel):
+    data: List[DigResultItem] = Field(
+        default_factory=list,
+        description="Retrieved entities and their surface forms.",
+    )
+    status: Literal["complete", "incomplete", "failed"] = Field(
+        description="Whether the retrieval completed successfully.",
+    )
+    failed_requests: int = Field(
+        ge=0,
+        description="Number of SPARQL requests that failed.",
+    )
+    error: str | None = Field(
+        default=None,
+        description="Error message when retrieval failed or was incomplete.",
+    )
 
 
 async def _enumerate_descendants(
@@ -88,7 +119,7 @@ async def run_dig(
     items: List[DigItem],
     budget: SparqlBudget,
     fixed: bool,
-) -> List[Dict[str, Any]]:
+) -> DigResponse:
     matched_legacy: Set[str] = set()
     matched_fixed: Set[Tuple[str, str]] = set()
 
@@ -97,7 +128,11 @@ async def run_dig(
         return_categories = bool(int(return_categories_raw))
         return_pages = bool(int(return_pages_raw))
 
-        if not await hydration.category_exists(seed_category, budget):
+        exists = await hydration.category_exists(seed_category, budget)
+        if exists is None:
+            continue
+
+        if not exists:
             logger.warning(
                 "skipping seed, doesn't look like a real category: %s",
                 seed_category,
@@ -138,5 +173,26 @@ async def run_dig(
     )
 
     if fixed:
-        return build_documents(store, matched_fixed)
-    return build_documents(store, ((uri, uri) for uri in matched_legacy))
+        digged_data = build_documents(store, matched_fixed)
+    else:
+        digged_data = build_documents(store, ((uri, uri) for uri in matched_legacy))
+
+    no_queries_failed = budget.failed == 0
+    all_queries_failed = budget.used > 0 and budget.failed == budget.used and len(digged_data) == 0
+
+    if all_queries_failed:
+        status = "failed"
+        error = f"All {budget.failed} SPARQL requests failed. Unable to retrieve results."
+    elif not no_queries_failed:
+        status = "incomplete"
+        error = f"{budget.failed} SPARQL requests failed. The returned results may be incomplete."
+    else:
+        status = "complete"
+        error = None
+
+    return DigResponse(
+        data=digged_data,
+        status=status,
+        failed_requests=budget.failed,
+        error=error,
+    )

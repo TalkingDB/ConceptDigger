@@ -39,7 +39,17 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
         network_exception=run.network_exception,
         status_code=run.status_code,
     )
-    records = flatten_documents(run.body)
+    response = run.body
+    data = response.get("data") if isinstance(response, dict) else None
+    grouped = (
+        data
+        if isinstance(data, list) and data and isinstance(data[0].get("surface_text"), list)
+        else None
+    )
+    records = flatten_documents(grouped) if grouped is not None else (
+        data if isinstance(data, list) else []
+    )
+   
     register_view(
         request.node.nodeid,
         LiveView(
@@ -59,7 +69,7 @@ def test_dig_matches_expected_output(case, live_dig_results, sparql_probe, live_
             ),
             request=case.request_body,
             expected=expected,
-            actual=run.body if run.body is not None else (run.raw_text or None),
+            actual=response if response is not None else None,
             actual_records=records,
             status_code=run.status_code,
             headers=run.headers,

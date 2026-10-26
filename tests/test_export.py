@@ -134,10 +134,11 @@ async def test_dig_records_include_entity(stub_api):
         json={"categories": [CATEGORY], "max_depth": 0},
     )
     assert response.status_code == 200
-    records = response.json()
+    response_json = response.json()
+    records = response_json.get("data", [])
     assert records
     for rec in records:
-        assert rec["entity"] == rec["entity_url"].removeprefix("DBPedia>")
+        assert rec["entity_url"] == f"DBPedia>{rec['entity']}"
         assert set(rec) == {
             "entity_url",
             "entity",
@@ -168,8 +169,9 @@ async def test_dig_export_true_writes_file(stub_api):
     files = _exports(tmp_path)
     assert len(files) == 1
     payload = json.loads(files[0].read_text(encoding="utf-8"))
-    assert payload == response.json()
-    assert all("entity" in rec for rec in payload)
+    digged_data = response.json()
+    assert payload == digged_data["data"]
+    assert all("entity_url" in rec for rec in payload)
 
 
 async def test_dig_reports_when_export_write_fails(stub_api, monkeypatch):
@@ -186,7 +188,8 @@ async def test_dig_reports_when_export_write_fails(stub_api, monkeypatch):
     assert response.status_code == 500
     body = response.json()
     assert body["detail"] == "Could not write the export files: disk full"
-    assert body["records"]
+    assert body["status"] == "complete"
+    assert body["data"]
     assert _exports(tmp_path) == []
 
 
@@ -218,7 +221,7 @@ async def test_export_endpoint_writes_file(stub_api):
     assert len(files) == 1
     assert Path(files[0]).exists()
     payload = json.loads(Path(files[0]).read_text(encoding="utf-8"))
-    assert all("entity" in rec for rec in payload)
+    assert all("entity_url" in rec for rec in payload)
 
 
 async def test_export_404_for_uncached_category(offline_api):
@@ -250,16 +253,17 @@ async def test_export_400_for_excessive_max_depth(offline_api):
 
 async def test_export_matches_dig_for_nested_cache(tree_api):
     client, _tmp_path, _store, sparql = tree_api
-    dig = await client.post(
+    res = await client.post(
         "/api/v1/dig",
         json={"categories": ["Category:Root"], "max_depth": 1},
     )
-    assert dig.status_code == 200
-    dig_records = dig.json()
-    entities = {r["entity"] for r in dig_records}
-    assert "Category:Child" in entities
-    assert "ShallowPage" in entities
-    assert "DeepPage" in entities
+    assert res.status_code == 200
+    response = res.json()
+    dig_records = response.get("data", [])
+    entities = {r["entity_url"] for r in dig_records}
+    assert "DBPedia>Category:Child" in entities
+    assert "DBPedia>ShallowPage" in entities
+    assert "DBPedia>DeepPage" in entities
 
     calls_after_dig = sparql.calls
     exported = await client.post(
@@ -294,9 +298,9 @@ async def test_multiple_seeds_write_separate_files(multi_api):
         seeds = {rec["seed_category"] for rec in payload}
         assert len(seeds) == 1
         seed = seeds.pop()
-        by_seed[seed] = {rec["entity"] for rec in payload}
-    assert by_seed["Category:Gases"] == {"Helium"}
-    assert by_seed["Category:Metals"] == {"Iron"}
+        by_seed[seed] = {rec["entity_url"] for rec in payload}
+    assert by_seed["Category:Gases"] == {"DBPedia>Helium"}
+    assert by_seed["Category:Metals"] == {"DBPedia>Iron"}
 
 
 def test_write_exports_unique_filenames(tmp_path):

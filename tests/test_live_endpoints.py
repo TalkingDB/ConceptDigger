@@ -24,6 +24,7 @@ def _view(request, title, inputs, api_call, req, expected, actual, verdict, chec
         exception=exc, duration_s=duration))
 
 
+
 async def test_live_dig_categories_only_returns_only_categories(live_stack, sparql_probe, request):
     """Same category as 'noble_gases' but return_pages=false (stored expectation: noble_gases_categories_only)."""
     sparql_probe.require()
