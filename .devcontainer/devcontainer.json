@@ -11,7 +11,11 @@
         "elasticsearch"
     ],
     "shutdownAction": "stopCompose",
-    "initializeCommand": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"if (!(Test-Path '${localWorkspaceFolder}\\.env')) { Copy-Item '${localWorkspaceFolder}\\.env.example' '${localWorkspaceFolder}\\.env' }\"",
+    "initializeCommand": {
+        "windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"if (!(Test-Path '${localWorkspaceFolder}\\.env')) { Copy-Item '${localWorkspaceFolder}\\.env.example' '${localWorkspaceFolder}\\.env' }\"",
+        "linux": "sh -c 'test -f .env || cp .env.example .env'",
+        "osx": "sh -c 'test -f .env || cp .env.example .env'"
+    },
     "containerEnv": {
         "PORT": "5007",
         "SPARQL_ENDPOINT": "https://dbpedia.org/sparql",
