@@ -22,7 +22,7 @@ MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 Response body: a JSON array with one document per (entity, seed category):
 {entity_url, entity, surface_text: [{text, how_this_record}], seed_category}
 — the shape loaded into Elasticsearch. When export is true, the same documents are also written to data/exports/<Seed>_<timestamp>_<id>.json, one file per
-seed category.
+seed category. A disk error on that write returns 500 with `detail` and the documents in `records`.
 
 POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
 file on demand for a single category; it returns the paths written. Its body
@@ -38,6 +38,7 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
@@ -130,8 +131,15 @@ async def dig(body: DigRequest, request: Request):
     if body.export:
         try:
             await asyncio.to_thread(write_exports, store, [item[0] for item in items], records)
-        except Exception:
-            logger.exception("Failed to write /dig export files; returning records anyway")
+        except OSError as exc:
+            logger.exception("Failed to write /dig export files")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": f"Could not write the export files: {exc}",
+                    "records": records,
+                },
+            )
     return records
 
 
@@ -143,4 +151,11 @@ async def export(body: ExportRequest, request: Request):
     if not store.has_node(seed):
         raise HTTPException(status_code=404, detail=f"Category not in cache: {seed}")
     records = collect_from_cache(store, seed, max_depth, return_categories=True, return_pages=True)
-    return {"files": await asyncio.to_thread(write_exports, store, [seed], records)}
+    try:
+        files = await asyncio.to_thread(write_exports, store, [seed], records)
+    except OSError as exc:
+        logger.exception("Failed to write /export file")
+        raise HTTPException(
+            status_code=500, detail=f"Could not write the export file: {exc}",
+        ) from exc
+    return {"files": files}

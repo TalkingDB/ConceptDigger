@@ -172,7 +172,7 @@ async def test_dig_export_true_writes_file(stub_api):
     assert all("entity" in rec for rec in payload)
 
 
-async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch):
+async def test_dig_reports_when_export_write_fails(stub_api, monkeypatch):
     client, tmp_path, _store, _sparql = stub_api
 
     def boom(*_args, **_kwargs):
@@ -183,9 +183,27 @@ async def test_dig_returns_records_when_export_write_fails(stub_api, monkeypatch
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0, "export": True},
     )
-    assert response.status_code == 200
-    assert response.json()
+    assert response.status_code == 500
+    body = response.json()
+    assert body["detail"] == "Could not write the export files: disk full"
+    assert body["records"]
     assert _exports(tmp_path) == []
+
+
+async def test_export_reports_when_write_fails(stub_api, monkeypatch):
+    client, _tmp_path, _store, _sparql = stub_api
+    await client.post("/api/v1/dig", json={"categories": [CATEGORY], "max_depth": 0})
+
+    def boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("app.routers.dig.write_exports", boom)
+    response = await client.post(
+        "/api/v1/export",
+        json={"category": CATEGORY, "max_depth": 0},
+    )
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Could not write the export file: disk full"
 
 
 async def test_export_endpoint_writes_file(stub_api):
