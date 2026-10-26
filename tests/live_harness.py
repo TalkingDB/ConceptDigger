@@ -28,6 +28,7 @@ from starlette.datastructures import State
 
 from app.category import parse_category_url, parse_resource_url
 from app.config import settings
+from app.dig import DigResponse
 from app.graph_store import GraphStore
 from app.hydration import HydrationService
 from app.main import app
@@ -382,6 +383,25 @@ def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
     }]
 
 
+def dig_response(documents: list[dict], *, used: int, failed: int) -> dict:
+    """Wrap documents in the POST /api/v1/dig envelope. Status follows run_dig."""
+    if used > 0 and failed == used and not documents:
+        status = "failed"
+        error = f"All {failed} SPARQL requests failed. Unable to retrieve results."
+    elif failed:
+        status = "incomplete"
+        error = f"{failed} SPARQL requests failed. The returned results may be incomplete."
+    else:
+        status = "complete"
+        error = None
+    return DigResponse(
+        data=documents,
+        status=status,
+        failed_requests=failed,
+        error=error,
+    ).model_dump(mode="json")
+
+
 async def _call_case(stack: LiveStack, case: Case, run: CaseRun) -> None:
     if case.kind == "article":
         hyd = await stack.api.post("/api/v1/hydrate-synonyms", json=case.request_body)
@@ -405,7 +425,14 @@ async def _call_case(stack: LiveStack, case: Case, run: CaseRun) -> None:
         except ValueError:
             run.raw_text = graph.text[:2000]
             return
-        run.body = synonym_records(case.local_name, graph_body) if graph.status_code == 200 else graph_body
+        if graph.status_code != 200:
+            run.body = graph_body
+            return
+        run.body = dig_response(
+            synonym_records(case.local_name, graph_body),
+            used=len(stack.recorder.calls),
+            failed=len(stack.recorder.failed_calls),
+        )
         return
 
     resp = await stack.api.post("/api/v1/dig", json=case.request_body)
