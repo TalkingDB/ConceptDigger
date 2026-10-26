@@ -19,8 +19,21 @@ batch (this is a change from the old per-item-tuple protocol, where each
 category could carry its own depth/flags). max_depth may not exceed
 MAX_DEPTH_HARD_CAP; values above the cap are rejected with HTTP 400.
 
-Response body: a JSON array of
-{entity_url, entity, surface_text, seed_category, how_this_record} objects.
+Response body:
+{
+    "data": [
+        {
+            "entity_url": "DBPedia>Sodium_chloride",
+            "surface_text": "sodium chloride",
+            "seed_category": "Category:Example",
+            "how_this_record": "rdfs:label"
+        }
+    ],
+    "status": "complete",
+    "failed_requests": 0,
+    "error": null
+}
+
 When export is true, the same records are also written to
 data/exports/<Seed>_<timestamp>_<id>.json, one file per seed category.
 A write failure is logged and does not fail /dig.
@@ -29,21 +42,23 @@ POST /api/v1/export reads only the cached graph (no SPARQL) and writes that
 file on demand for a single category; it returns the paths written. Its body
 is just the category and an optional max_depth (categories and pages are
 always included):
-{
-  "category": "http://dbpedia.org/resource/Category:Food_ingredients",
-  "max_depth": 2
-}
+
+Status values:
+- complete: All relevant SPARQL requests succeeded.
+- incomplete: Some SPARQL requests failed, but results are available.
+- failed: All relevant attempted SPARQL requests failed.
 """
 import asyncio
 import logging
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from ..category import require_category, require_max_depth
 from ..config import settings
-from ..dig import run_dig
+from ..dig import run_dig, DigResponse
 from ..export import collect_from_cache, write_exports
 from ..hydration import SparqlBudget
 
@@ -110,8 +125,17 @@ class ExportRequest(BaseModel):
     }
 
 
-@router.post("/dig")
-async def dig(body: DigRequest, request: Request):
+@router.post(
+    "/dig", 
+    response_model=DigResponse,
+    responses={
+        502: {
+            "model": DigResponse,
+            "description": "All relevant attempted SPARQL requests failed."
+        }
+    }
+)
+async def dig(body: DigRequest, request: Request, response: Response) -> DigResponse | JSONResponse:
     store = request.app.state.store
     hydration = request.app.state.hydration
     budget = SparqlBudget()
@@ -127,14 +151,34 @@ async def dig(body: DigRequest, request: Request):
         for category in body.categories
     ]
 
-    records = await run_dig(hydration, store, items, budget, fixed=True)
+    result = await run_dig(hydration, store, items, budget, fixed=True)
+   
+    # validate the result returned by run_dig against the API schema.
+    dig_response = DigResponse.model_validate(result)
+
+    if dig_response.status == "failed":
+        return JSONResponse(
+            status_code=502,
+            content=dig_response.model_dump(mode="json"),
+        )
+
     if body.export:
         try:
-            await asyncio.to_thread(write_exports, store, [item[0] for item in items], records)
+            export_records = [
+                record.model_dump(mode="json")
+                for record in dig_response.data
+            ]
+
+            await asyncio.to_thread(
+                write_exports,
+                store,
+                [item[0] for item in items],
+                export_records,
+            )
         except Exception:
             logger.exception("Failed to write /dig export files; returning records anyway")
-    return records
 
+    return dig_response
 
 @router.post("/export")
 async def export(body: ExportRequest, request: Request):
