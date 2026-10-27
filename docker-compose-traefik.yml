@@ -6,6 +6,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - DOCKER_API_VERSION=1.40
     command:
       - "--api.dashboard=false"
       - "--providers.docker=true"
