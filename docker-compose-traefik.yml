@@ -9,10 +9,7 @@ services:
     command:
       - "--api.dashboard=false"
       - "--providers.docker=true"
-      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
-      # 👇 Force Traefik to use a newer Docker API version
-      - "--providers.docker.version=v1.40"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       # automatic HTTP -> HTTPS Redirect
