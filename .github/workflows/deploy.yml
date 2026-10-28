@@ -1,0 +1,92 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+
+jobs:
+  # -------------------------------------------------------------
+  # master branch deployment (production)
+  # -------------------------------------------------------------
+  deploy-master:
+    name: Deploy to Production
+    if: github.ref_name == 'master'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VM_SSH_KEY }}
+
+      - name: Run master deployment script on VM
+        env:
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+
+          ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" << 'EOF'
+            set -e
+            echo "[MASTER] Navigating to repository directory..."
+            cd "$DEPLOY_DIR"
+
+            echo "[MASTER] Switching to master branch..."
+            git checkout master
+
+            echo "[MASTER] Pulling latest changes..."
+            git pull origin master
+
+            echo "[MASTER] Running deployment script..."
+            sudo bash deploy.sh
+          EOF
+
+  # -------------------------------------------------------------
+  # develop branch deployment (staging / dev)
+  # -------------------------------------------------------------
+  # uncomment the below job once we are doing the deployment for staging
+  # ensure the required secrets are added in github before.
+  # deploy-develop:
+  #   name: Deploy to Staging
+  #   if: github.ref_name == 'develop'
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up SSH Key
+  #       uses: webfactory/ssh-agent@v0.9.0
+  #       with:
+  #         ssh-private-key: ${{ secrets.VM_SSH_KEY_DEV }}
+
+  #     - name: Run develop deployment script on VM
+  #       env:
+  #         VM_USER: ${{ secrets.VM_USER_DEV }}
+  #         VM_HOST: ${{ secrets.VM_HOST_DEV }}
+  #         DEPLOY_DIR: ${{ secrets.DEPLOY_DIR_DEV }}
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+
+  #         ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" << 'EOF'
+  #           set -e
+  #           echo "[DEVELOP] Navigating to repository directory..."
+  #           cd "$DEPLOY_DIR"
+
+  #           echo "[DEVELOP] Switching to develop branch..."
+  #           git checkout develop
+
+  #           echo "[DEVELOP] Pulling latest changes..."
+  #           git pull origin develop
+
+  #           echo "[DEVELOP] Running deployment script..."
+  #           sudo bash deploy.sh
+  #         EOF
