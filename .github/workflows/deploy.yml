@@ -39,7 +39,7 @@ jobs:
           ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
 
           # Pass runner environment variables securely into the remote shell session
-          ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+          ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
             "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='master' bash -s" << 'EOF'
             set -e
             echo "[MASTER] Navigating to repository directory..."
@@ -82,7 +82,7 @@ jobs:
   #         ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
   #
   #         # Pass runner environment variables securely into the remote shell session
-  #         ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+  #         ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
   #           "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='develop' bash -s" << 'EOF'
   #           set -e
   #           echo "[DEVELOP] Navigating to repository directory..."
