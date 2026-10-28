@@ -12,6 +12,14 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+    networks:
+      - ss-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.conceptdigger.rule=Host(`concept-digger.talkingdb.io`)"
+      - "traefik.http.routers.conceptdigger.entrypoints=websecure"
+      - "traefik.http.routers.conceptdigger.tls.certresolver=letsencrypt"
+      - "traefik.http.services.conceptdigger.loadbalancer.server.port=5007"
     command:
       - uvicorn
       - app.main:app
@@ -42,6 +50,8 @@ services:
         hard: 65536
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - ss-network
     healthcheck:
       test: ["CMD-SHELL", "curl -s -f http://localhost:9200"]
       interval: 60s
@@ -51,3 +61,7 @@ services:
 
 volumes:
   elasticsearch-data:
+
+networks:
+  ss-network:
+    external: true
