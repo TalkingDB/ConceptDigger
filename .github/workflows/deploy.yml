@@ -1,14 +1,14 @@
 name: Deployment
 
 on:
-  push:
-    branches:
-      - master
-      - develop
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
 
 # prevent concurrent deployments on the same branch
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
@@ -17,7 +17,8 @@ jobs:
   # -------------------------------------------------------------
   deploy-master:
     name: Deploy to Production
-    if: github.ref_name == 'master'
+    # only run if Tests passed successfully AND the branch was master
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -29,7 +30,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.VM_SSH_KEY }}
 
-      - name: Run master deployment script on VM
+      - name: Run master deployment script on VM & Health Check
         env:
           VM_USER: ${{ secrets.VM_USER }}
           VM_HOST: ${{ secrets.VM_HOST }}
@@ -40,8 +41,26 @@ jobs:
 
           # Pass runner environment variables securely into the remote shell session
           ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
-            "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='master' bash -s" << 'EOF'
+            "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='master' VM_HOST='$VM_HOST' bash -s" << 'EOF'
             set -e
+
+            # Define a rollback function in case anything fails
+            rollback() {
+              echo "❌ Deployment failed! Initiating automatic rollback..."
+              cd "$DEPLOY_DIR"
+
+              # 1. Revert to the last known good commit before this pull
+              git reset --hard HEAD@{1} || true
+
+              echo "🔄 Re-running deployment script with stable code..."
+              # 2. Re-run deploy.sh so services/containers restart with the stable version
+              sudo bash deploy.sh || echo "Warning: Rollback deployment script failed."
+              echo "Rollback complete. Please check server logs."
+            }
+
+            # Trap any ERR (error signal) and run the rollback function
+            trap rollback ERR
+
             echo "[MASTER] Navigating to repository directory..."
             cd "$DEPLOY_DIR"
 
@@ -51,6 +70,9 @@ jobs:
 
             echo "[MASTER] Running deployment script..."
             sudo bash deploy.sh
+
+            echo "[MASTER] Running health check..."
+            curl -f "https://$VM_HOST/api/v1/health" || (echo "Health check failed: App is not responding!" && exit 1)
           EOF
 
   # -------------------------------------------------------------
@@ -60,19 +82,19 @@ jobs:
   # ensure the required secrets are added in github before.
   # deploy-develop:
   #   name: Deploy to Staging
-  #   if: github.ref_name == 'develop'
+  #   if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
   #   runs-on: ubuntu-latest
-  #
+  
   #   steps:
   #     - name: Checkout code
   #       uses: actions/checkout@v4
-  #
+  
   #     - name: Set up SSH Key
   #       uses: webfactory/ssh-agent@v0.9.0
   #       with:
   #         ssh-private-key: ${{ secrets.VM_SSH_KEY_DEV }}
-  #
-  #     - name: Run develop deployment script on VM
+  
+  #     - name: Run develop deployment script on VM & Health Check
   #       env:
   #         VM_USER: ${{ secrets.VM_USER_DEV }}
   #         VM_HOST: ${{ secrets.VM_HOST_DEV }}
@@ -80,19 +102,39 @@ jobs:
   #       run: |
   #         mkdir -p ~/.ssh
   #         ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
-  #
+  
   #         # Pass runner environment variables securely into the remote shell session
   #         ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
-  #           "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='develop' bash -s" << 'EOF'
+  #           "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='develop' VM_HOST='$VM_HOST' bash -s" << 'EOF'
   #           set -e
-  #           echo "[DEVELOP] Navigating to repository directory..."
+  
+  #           # Define a rollback function in case anything fails
+  #           rollback() {
+  #             echo "❌ Deployment failed! Initiating automatic rollback..."
+  #             cd "$DEPLOY_DIR"
+
+  #             # 1. Revert to the last known good commit before this pull
+  #             git reset --hard HEAD@{1} || true
+
+  #             echo "🔄 Re-running deployment script with stable code..."
+  #             # 2. Re-run deploy.sh so services/containers restart with the stable version
+  #             sudo bash deploy.sh || echo "Warning: Rollback deployment script failed."
+  #             echo "Rollback complete. Please check server logs."
+  #           }
+  
+  #          # Trap any ERR (error signal) and run the rollback function
+  #          trap rollback ERR
+  
+  #          echo "[DEVELOP] Navigating to repository directory..."
   #           cd "$DEPLOY_DIR"
-  #
+  
   #           echo "[DEVELOP] Pulling latest changes..."
   #           git checkout develop
   #           git pull origin develop
-  #
+  
   #           echo "[DEVELOP] Running deployment script..."
   #           sudo bash deploy.sh
-  #         EOF
   
+  #           echo "[DEVELOP] Running health check..."
+  #           curl -f "https://$VM_HOST/api/v1/health" || (echo "Health check failed: App is not responding!" && exit 1)
+  #         EOF
