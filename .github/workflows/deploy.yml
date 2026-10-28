@@ -6,6 +6,11 @@ on:
       - master
       - develop
 
+# prevent concurrent deployments on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   # -------------------------------------------------------------
   # master branch deployment (production)
@@ -33,15 +38,15 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
 
-          ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" << 'EOF'
+          # Pass runner environment variables securely into the remote shell session
+          ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+            "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='master' bash -s" << 'EOF'
             set -e
             echo "[MASTER] Navigating to repository directory..."
             cd "$DEPLOY_DIR"
 
-            echo "[MASTER] Switching to master branch..."
-            git checkout master
-
             echo "[MASTER] Pulling latest changes..."
+            git checkout master
             git pull origin master
 
             echo "[MASTER] Running deployment script..."
@@ -57,16 +62,16 @@ jobs:
   #   name: Deploy to Staging
   #   if: github.ref_name == 'develop'
   #   runs-on: ubuntu-latest
-
+  #
   #   steps:
   #     - name: Checkout code
   #       uses: actions/checkout@v4
-
+  #
   #     - name: Set up SSH Key
   #       uses: webfactory/ssh-agent@v0.9.0
   #       with:
   #         ssh-private-key: ${{ secrets.VM_SSH_KEY_DEV }}
-
+  #
   #     - name: Run develop deployment script on VM
   #       env:
   #         VM_USER: ${{ secrets.VM_USER_DEV }}
@@ -75,18 +80,19 @@ jobs:
   #       run: |
   #         mkdir -p ~/.ssh
   #         ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
-
-  #         ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" << 'EOF'
+  #
+  #         # Pass runner environment variables securely into the remote shell session
+  #         ssh -o StrictHostKeyChecking=no "$VM_USER@$VM_HOST" \
+  #           "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='develop' bash -s" << 'EOF'
   #           set -e
   #           echo "[DEVELOP] Navigating to repository directory..."
   #           cd "$DEPLOY_DIR"
-
-  #           echo "[DEVELOP] Switching to develop branch..."
-  #           git checkout develop
-
+  #
   #           echo "[DEVELOP] Pulling latest changes..."
+  #           git checkout develop
   #           git pull origin develop
-
+  #
   #           echo "[DEVELOP] Running deployment script..."
   #           sudo bash deploy.sh
   #         EOF
+  
