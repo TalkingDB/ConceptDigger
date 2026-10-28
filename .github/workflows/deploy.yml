@@ -1,0 +1,167 @@
+name: Deployment
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+
+# prevent concurrent deployments on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  # -------------------------------------------------------------
+  # master branch deployment (production)
+  # -------------------------------------------------------------
+  deploy-master:
+    name: Deploy to Production
+    # only run if Tests passed successfully AND the branch was master
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'master' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VM_SSH_KEY }}
+
+      - name: Run master deployment script on VM & Health Check
+        env:
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
+          TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+
+          # Pass runner environment variables securely into the remote shell session
+          ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
+            "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='master' TARGET_SHA='$TARGET_SHA' VM_HOST='$VM_HOST' bash -s" << 'EOF'
+            set -e
+
+            # Define a rollback function in case anything fails
+            rollback() {
+              echo "❌ Deployment failed! Initiating automatic rollback..."
+              cd "$DEPLOY_DIR"
+
+              # Revert back to the previous stable commit (HEAD@{1}), leaving untracked files (like acme.sh) untouched
+              git reset --hard HEAD@{1} || true
+
+              echo "🔄 Re-running deployment script with stable code..."
+              sudo bash deploy.sh || echo "Warning: Rollback deployment script failed."
+              echo "Rollback complete. Please check server logs."
+            }
+
+            # Trap any ERR (error signal) and run the rollback function
+            trap rollback ERR
+
+            echo "[MASTER] Navigating to repository directory..."
+            cd "$DEPLOY_DIR"
+
+            echo "[MASTER] Fetching and checking out exact tested commit ($TARGET_SHA)..."
+            git fetch origin master
+            git checkout "$TARGET_SHA"
+
+            echo "[MASTER] Running deployment script..."
+            sudo bash deploy.sh
+
+            echo "[MASTER] Running health check with retry for Uvicorn startup..."
+            RETRIES=10
+            DELAY=3
+            success=false
+
+            for i in $(seq 1 $RETRIES); do
+              if curl -f "https://$VM_HOST/api/v1/health"; then
+                success=true
+                echo "Health check passed!"
+                break
+              fi
+              echo "Attempt $i/$RETRIES: App starting up, waiting ${DELAY}s..."
+              sleep $DELAY
+            done
+
+            if [ "$success" = false ]; then
+              echo "Health check failed: App is not responding after startup timeout!"
+              exit 1
+            fi
+          EOF
+
+  # -------------------------------------------------------------
+  # develop branch deployment (staging / dev)
+  # -------------------------------------------------------------
+  # uncomment the below job once we are doing the deployment for staging
+  # ensure the required secrets are added in github before.
+  # deploy-develop:
+  #   name: Deploy to Staging
+  #   if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop' }}
+  #   runs-on: ubuntu-latest
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up SSH Key
+  #       uses: webfactory/ssh-agent@v0.9.0
+  #       with:
+  #         ssh-private-key: ${{ secrets.VM_SSH_KEY_DEV }}
+  #
+  #     - name: Run develop deployment script on VM & Health Check
+  #       env:
+  #         VM_USER: ${{ secrets.VM_USER_DEV }}
+  #         VM_HOST: ${{ secrets.VM_HOST_DEV }}
+  #         DEPLOY_DIR: ${{ secrets.DEPLOY_DIR_DEV }}
+  #         TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         ssh-keyscan -H "$VM_HOST" >> ~/.ssh/known_hosts
+  #
+  #         ssh -o StrictHostKeyChecking=accept-new "$VM_USER@$VM_HOST" \
+  #           "DEPLOY_DIR='$DEPLOY_DIR' TARGET_BRANCH='develop' TARGET_SHA='$TARGET_SHA' VM_HOST='$VM_HOST' bash -s" << 'EOF'
+  #           set -e
+  #
+  #           rollback() {
+  #             echo "❌ Deployment failed! Initiating automatic rollback..."
+  #             cd "$DEPLOY_DIR"
+  #             git reset --hard HEAD@{1} || true
+  #             sudo bash deploy.sh || echo "Warning: Rollback deployment script failed."
+  #             echo "Rollback complete. Please check server logs."
+  #           }
+  #
+  #           trap rollback ERR
+  #
+  #           echo "[DEVELOP] Navigating to repository directory..."
+  #           cd "$DEPLOY_DIR"
+  #
+  #           echo "[DEVELOP] Fetching and checking out exact tested commit ($TARGET_SHA)..."
+  #           git fetch origin develop
+  #           git checkout "$TARGET_SHA"
+  #
+  #           echo "[DEVELOP] Running deployment script..."
+  #           sudo bash deploy.sh
+  #
+  #           echo "[DEVELOP] Running health check with retry for Uvicorn startup..."
+  #           RETRIES=10
+  #           DELAY=3
+  #           success=false
+  #
+  #           for i in $(seq 1 $RETRIES); do
+  #             if curl -f "https://$VM_HOST/api/v1/health"; then
+  #               success=true
+  #               echo "Health check passed!"
+  #               break
+  #             fi
+  #             echo "Attempt $i/$RETRIES: App starting up, waiting ${DELAY}s..."
+  #             sleep $DELAY
+  #           done
+  #
+  #           if [ "$success" = false ]; then
+  #             echo "Health check failed: App is not responding after startup timeout!"
+  #             exit 1
+  #           fi
+  #         EOF
