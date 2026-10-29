@@ -26,9 +26,10 @@ from .config import settings
 from .export import list_export_files
 from .graph_store import GraphStore
 from .hydration import HydrationService
-from .routers import dig, health, hydrate, graph, graph_data, synonyms
+from .routers import dig, health, hydrate, graph, graph_data, synonyms, wikidata
 from .routers.synonyms import patch_openapi_file_enum
 from .sparql_client import SparqlTransientError, sparql_client
+from .wikidata import WikidataService
 
 
 @asynccontextmanager
@@ -42,6 +43,8 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     app.state.hydration = hydration
     app.state.http_client = http_client
+    # Experimental Wikidata digger, cached separately from the DBpedia graph.
+    app.state.wikidata = WikidataService(GraphStore(settings.wikidata_cache_file_path), http_client)
 
     yield
 
@@ -61,6 +64,7 @@ app.include_router(health.router)
 app.include_router(graph.router)
 app.include_router(graph_data.router)
 app.include_router(synonyms.router)
+app.include_router(wikidata.router)
 
 
 def export_names_for_docs() -> list[str]:

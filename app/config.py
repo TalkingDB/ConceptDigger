@@ -64,6 +64,29 @@ class Settings:
     # a volume in production.
     cache_file_path: str = field(default_factory=lambda: _env_str("CACHE_FILE_PATH", "data/graph_cache.json"))
 
+    # Experimental Wikidata digger (/api/v1/wikidata/dig). Kept in its own
+    # cache file so it never mixes with the DBpedia graph and the two can be
+    # compared side by side.
+    wikidata_cache_file_path: str = field(default_factory=lambda: _env_str("WIKIDATA_CACHE_FILE_PATH", "data/wikidata_cache.json"))
+    wikidata_sparql_endpoint: str = field(default_factory=lambda: _env_str("WIKIDATA_SPARQL_ENDPOINT", "https://query.wikidata.org/sparql"))
+    wikidata_api_url: str = field(default_factory=lambda: _env_str("WIKIDATA_API_URL", "https://www.wikidata.org/w/api.php"))
+    wikipedia_api_url: str = field(default_factory=lambda: _env_str("WIKIPEDIA_API_URL", "https://en.wikipedia.org/w/api.php"))
+    # Wikimedia answers 403 to programmatic clients whose user agent carries
+    # no contact (URL or email): https://w.wiki/4wJS
+    wikimedia_user_agent: str = field(default_factory=lambda: _env_str("WIKIMEDIA_USER_AGENT", "ConceptDigger/2.0 (https://github.com/TalkingDB/ConceptDigger)"))
+    # Label/alias languages pulled from Wikidata, "|"-separated.
+    wikidata_languages: str = field(default_factory=lambda: _env_str("WIKIDATA_LANGUAGES", "en|en-gb|en-us|en-ca|simple"))
+    # Per-class cap on subclasses + instances, so a huge class (e.g. "human")
+    # can't blow up a dig. Truncation is logged.
+    wikidata_max_children_per_node: int = field(default_factory=lambda: _env_int("WIKIDATA_MAX_CHILDREN_PER_NODE", 5000))
+    # Parallel outgoing Wikimedia requests. query.wikidata.org allows 5 per IP.
+    wikidata_concurrency: int = field(default_factory=lambda: _env_int("WIKIDATA_CONCURRENCY", 4))
+    # Minimum gap between calls to each host, process-wide (same idea as
+    # SPARQL_MIN_INTERVAL_SECONDS). en.wikipedia.org rate-limits harder than
+    # Wikidata, mostly the search API used for disambiguations.
+    wikipedia_min_interval_seconds: float = field(default_factory=lambda: _env_float("WIKIPEDIA_MIN_INTERVAL_SECONDS", 0.2))
+    wikidata_min_interval_seconds: float = field(default_factory=lambda: _env_float("WIKIDATA_MIN_INTERVAL_SECONDS", 0.1))
+
     # After each successful export write, older JSON files in data/exports/
     # are deleted until at most this many remain. 0 disables pruning.
     export_max_files: int = field(default_factory=lambda: _env_int("EXPORT_MAX_FILES", 50))
