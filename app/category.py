@@ -4,7 +4,7 @@ from urllib.parse import quote, unquote, urlparse
 from fastapi import HTTPException
 
 from .config import settings
-from .configs.data_sources import WIKIPEDIA_WIKI_URL
+from .configs.data_sources import WIKIPEDIA_BASE_URL
 
 _RESOURCE_PREFIXES = (
     "https://dbpedia.org/resource/",
@@ -77,7 +77,7 @@ def wikipedia_entity_url(local_name: str) -> str:
     Parentheses, apostrophes and colons stay readable; other reserved
     characters are percent-encoded.
     """
-    return WIKIPEDIA_WIKI_URL + quote(local_name, safe="()'!*,:")
+    return WIKIPEDIA_BASE_URL + quote(local_name, safe="()'!*,:")
 
 
 def require_resource(value: str) -> str:

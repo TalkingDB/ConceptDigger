@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.category import wikipedia_entity_url
-from app.configs.data_sources import WIKIPEDIA_WIKI_URL
+from app.configs.data_sources import WIKIPEDIA_BASE_URL
 from tests.live_harness import (
     Case,
     CaseRun,
@@ -32,7 +32,7 @@ from tests.live_harness import (
 ALLOWED_SOURCES = {"rdfs:label", "alt_name", "redirect", "disambiguation"}
 DOCUMENT_KEYS = {"entity_url", "entity", "surface_text", "seed_category"}
 SURFACE_FORM_KEYS = {"text", "how_this_record"}
-CATEGORY_PREFIX = f"{WIKIPEDIA_WIKI_URL}Category:"
+CATEGORY_PREFIX = f"{WIKIPEDIA_BASE_URL}Category:"
 
 PASS = "pass"
 NETWORK = "sparql_network_failure"
@@ -151,7 +151,7 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
                         f"{len(keys) - len(set(keys))} duplicate(s)" if len(keys) != len(set(keys)) else ""))
     records = flatten_documents(docs) or []
 
-    bad = [r for r in records if not str(r.get("entity_url", "")).startswith(WIKIPEDIA_WIKI_URL)]
+    bad = [r for r in records if not str(r.get("entity_url", "")).startswith(WIKIPEDIA_BASE_URL)]
     checks.append(Check("entity_url is an Wikipedia URL", not bad, f"{len(bad)} violation(s)" if bad else ""))
 
     bad = [r for r in records if r.get("how_this_record") not in ALLOWED_SOURCES]
