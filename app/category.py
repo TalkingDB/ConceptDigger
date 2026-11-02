@@ -1,9 +1,10 @@
 """Normalize user-supplied category URLs to DBpedia local names."""
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import HTTPException
 
 from .config import settings
+from .configs.data_sources import WIKIPEDIA_WIKI_URL
 
 _RESOURCE_PREFIXES = (
     "https://dbpedia.org/resource/",
@@ -66,6 +67,17 @@ def parse_category_url(value: str) -> str:
             "http://dbpedia.org/resource/Category:Food_ingredients."
         )
     return local_name
+
+
+def wikipedia_entity_url(local_name: str) -> str:
+    """English Wikipedia URL for a graph local name.
+
+    ``Helium`` becomes ``https://en.wikipedia.org/wiki/Helium`` and
+    ``Category:Spices`` becomes ``https://en.wikipedia.org/wiki/Category:Spices``.
+    Parentheses, apostrophes and colons stay readable; other reserved
+    characters are percent-encoded.
+    """
+    return WIKIPEDIA_WIKI_URL + quote(local_name, safe="()'!*,:")
 
 
 def require_resource(value: str) -> str:

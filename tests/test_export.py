@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
+from app.category import wikipedia_entity_url
 from app.config import settings
 from app.export import write_exports
 from app.graph_store import GraphStore
@@ -17,7 +18,7 @@ from app.main import app
 
 CATEGORY = "Category:Noble_gases"
 RECORD = {
-    "entity_url": "DBPedia>Helium",
+    "entity_url": "https://en.wikipedia.org/wiki/Helium",
     "entity": "Helium",
     "surface_text": [{"text": "helium", "how_this_record": "rdfs:label"}],
     "seed_category": CATEGORY,
@@ -138,7 +139,7 @@ async def test_dig_records_include_entity(stub_api):
     records = response_json.get("data", [])
     assert records
     for rec in records:
-        assert rec["entity_url"] == f"DBPedia>{rec['entity']}"
+        assert rec["entity_url"] == wikipedia_entity_url(rec["entity"])
         assert set(rec) == {
             "entity_url",
             "entity",
@@ -261,9 +262,9 @@ async def test_export_matches_dig_for_nested_cache(tree_api):
     response = res.json()
     dig_records = response.get("data", [])
     entities = {r["entity_url"] for r in dig_records}
-    assert "DBPedia>Category:Child" in entities
-    assert "DBPedia>ShallowPage" in entities
-    assert "DBPedia>DeepPage" in entities
+    assert wikipedia_entity_url("Category:Child") in entities
+    assert wikipedia_entity_url("ShallowPage") in entities
+    assert wikipedia_entity_url("DeepPage") in entities
 
     calls_after_dig = sparql.calls
     exported = await client.post(
@@ -299,8 +300,8 @@ async def test_multiple_seeds_write_separate_files(multi_api):
         assert len(seeds) == 1
         seed = seeds.pop()
         by_seed[seed] = {rec["entity_url"] for rec in payload}
-    assert by_seed["Category:Gases"] == {"DBPedia>Helium"}
-    assert by_seed["Category:Metals"] == {"DBPedia>Iron"}
+    assert by_seed["Category:Gases"] == {wikipedia_entity_url("Helium")}
+    assert by_seed["Category:Metals"] == {wikipedia_entity_url("Iron")}
 
 
 def test_write_exports_unique_filenames(tmp_path):

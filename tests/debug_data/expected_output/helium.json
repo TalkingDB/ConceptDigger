@@ -4,22 +4,22 @@
   "min_distinct_entities": 1,
   "must_include_records": [
     {
-      "entity_url": "DBPedia>Helium",
+      "entity_url": "https://en.wikipedia.org/wiki/Helium",
       "surface_text": "helium",
       "how_this_record": "rdfs:label"
     },
     {
-      "entity_url": "DBPedia>Helium",
+      "entity_url": "https://en.wikipedia.org/wiki/Helium",
       "surface_text": "element 2",
       "how_this_record": "redirect"
     },
     {
-      "entity_url": "DBPedia>Helium",
+      "entity_url": "https://en.wikipedia.org/wiki/Helium",
       "surface_text": "helium gas",
       "how_this_record": "redirect"
     },
     {
-      "entity_url": "DBPedia>Helium",
+      "entity_url": "https://en.wikipedia.org/wiki/Helium",
       "surface_text": "he",
       "how_this_record": "disambiguation"
     }

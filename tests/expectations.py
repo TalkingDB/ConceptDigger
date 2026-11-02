@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.category import wikipedia_entity_url
+from app.configs.data_sources import WIKIPEDIA_WIKI_URL
 from tests.live_harness import (
     Case,
     CaseRun,
@@ -30,7 +32,7 @@ from tests.live_harness import (
 ALLOWED_SOURCES = {"rdfs:label", "alt_name", "redirect", "disambiguation"}
 DOCUMENT_KEYS = {"entity_url", "entity", "surface_text", "seed_category"}
 SURFACE_FORM_KEYS = {"text", "how_this_record"}
-CATEGORY_PREFIX = "DBPedia>Category:"
+CATEGORY_PREFIX = f"{WIKIPEDIA_WIKI_URL}Category:"
 
 PASS = "pass"
 NETWORK = "sparql_network_failure"
@@ -136,8 +138,8 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
     checks.append(Check("every document has exactly the 4 documented fields", not bad_shape,
                         f"{len(bad_shape)} malformed document(s)" if bad_shape else ""))
 
-    bad = [d for d in docs if d.get("entity_url") != f"DBPedia>{d.get('entity')}"]
-    checks.append(Check("entity_url is 'DBPedia>' + entity", not bad, f"{len(bad)} violation(s)" if bad else ""))
+    bad = [d for d in docs if d.get("entity_url") != wikipedia_entity_url(str(d.get("entity") or ""))]
+    checks.append(Check("entity_url is the Wikipedia URL for entity", not bad, f"{len(bad)} violation(s)" if bad else ""))
 
     bad = [d for d in docs if not isinstance(d.get("surface_text"), list) or not d["surface_text"]
            or any(not isinstance(sf, dict) or set(sf) != SURFACE_FORM_KEYS for sf in d["surface_text"])]
@@ -149,8 +151,8 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
                         f"{len(keys) - len(set(keys))} duplicate(s)" if len(keys) != len(set(keys)) else ""))
     records = flatten_documents(docs) or []
 
-    bad = [r for r in records if not str(r.get("entity_url", "")).startswith("DBPedia>")]
-    checks.append(Check("entity_url starts with 'DBPedia>'", not bad, f"{len(bad)} violation(s)" if bad else ""))
+    bad = [r for r in records if not str(r.get("entity_url", "")).startswith(WIKIPEDIA_WIKI_URL)]
+    checks.append(Check("entity_url is an Wikipedia URL", not bad, f"{len(bad)} violation(s)" if bad else ""))
 
     bad = [r for r in records if r.get("how_this_record") not in ALLOWED_SOURCES]
     checks.append(Check("how_this_record is one of rdfs:label/alt_name/redirect/disambiguation", not bad,
@@ -186,7 +188,7 @@ def dig_checks(case: Case, expected: dict, run: CaseRun) -> list[Check]:
             "" if key in have else "MISSING from actual output",
         ))
     for ent in expected.get("must_not_include_entities", []):
-        present = f"DBPedia>{ent}" in entities or ent in entities
+        present = wikipedia_entity_url(ent) in entities or ent in entities
         checks.append(Check(f"forbidden entity absent: {ent}", not present, "PRESENT in actual output" if present else ""))
     return checks
 

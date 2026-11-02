@@ -18,7 +18,7 @@ from app.main import app
 from app.routers.synonyms import patch_openapi_file_enum
 
 BEN = {
-    "entity_url": "DBPedia>Ben_oil",
+    "entity_url": "https://en.wikipedia.org/wiki/Ben_oil",
     "entity": "Ben_oil",
     "surface_text": [
         {"text": "ben oil", "how_this_record": "rdfs:label"},
@@ -27,7 +27,7 @@ BEN = {
     "seed_category": "Category:Food_ingredients",
 }
 TURMERIC = {
-    "entity_url": "DBPedia>Turmeric",
+    "entity_url": "https://en.wikipedia.org/wiki/Turmeric",
     "entity": "Turmeric",
     "surface_text": [{"text": "turmeric", "how_this_record": "rdfs:label"}],
     "seed_category": "Category:Spices",

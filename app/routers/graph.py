@@ -36,7 +36,7 @@ import json
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
-from ..category import require_resource
+from ..category import require_resource, wikipedia_entity_url
 from ..config import settings
 from ..graph_store import GraphStore
 
@@ -49,6 +49,7 @@ def _node_summary(store: GraphStore, uri: str) -> Dict[str, object]:
 
     return {
         "id": uri,
+        "entity_url": wikipedia_entity_url(uri),
         "type": "category" if uri.startswith("Category:") else "page",
         "structure_hydrated": attrs.get(
             "structure_hydrated",
@@ -1175,6 +1176,8 @@ function renderTree() {{
 
             title.textContent =
                 node.id +
+                "\\nURL: " +
+                (node.entity_url || "") +
                 "\\nType: " +
                 node.type +
                 "\\nStructure hydrated: " +

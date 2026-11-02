@@ -4,27 +4,27 @@
   "min_distinct_entities": 1,
   "must_include_records": [
     {
-      "entity_url": "DBPedia>Argon",
+      "entity_url": "https://en.wikipedia.org/wiki/Argon",
       "surface_text": "argon",
       "how_this_record": "rdfs:label"
     },
     {
-      "entity_url": "DBPedia>Argon",
+      "entity_url": "https://en.wikipedia.org/wiki/Argon",
       "surface_text": "argon gas",
       "how_this_record": "redirect"
     },
     {
-      "entity_url": "DBPedia>Argon",
+      "entity_url": "https://en.wikipedia.org/wiki/Argon",
       "surface_text": "element 18",
       "how_this_record": "redirect"
     },
     {
-      "entity_url": "DBPedia>Argon",
+      "entity_url": "https://en.wikipedia.org/wiki/Argon",
       "surface_text": "ar",
       "how_this_record": "disambiguation"
     },
     {
-      "entity_url": "DBPedia>Argon",
+      "entity_url": "https://en.wikipedia.org/wiki/Argon",
       "surface_text": "a",
       "how_this_record": "disambiguation"
     }

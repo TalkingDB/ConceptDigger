@@ -5,6 +5,7 @@ Each test uses its own empty graph cache and the real endpoint.
 """
 import pytest
 
+from app.category import parse_resource_url
 from tests.expectations import CATEGORY_PREFIX, Check, conclude, dig_checks, flatten_documents, raise_for_verdict
 from tests.live_harness import CaseRun, attempt, get_case, load_expected
 from tests.reporting import LiveView, register_view
@@ -96,7 +97,7 @@ async def test_live_hydrate_then_graph_data(live_stack, sparql_probe, request):
                   f"health={hl}"),
         ]
         for want in expected.get("must_include_records", []):
-            ent = want["entity_url"].removeprefix("DBPedia>")
+            ent = parse_resource_url(want["entity_url"])
             if ent.startswith("Category:"):
                 continue
             checks.append(Check(f"expected member in graph: {ent}", ent in node_ids,

@@ -11,7 +11,7 @@ from app.main import app
 from app.synonym_index import surface_hits
 
 BEN = {
-    "entity_url": "DBPedia>Ben_oil",
+    "entity_url": "https://en.wikipedia.org/wiki/Ben_oil",
     "entity": "Ben_oil",
     "seed_category": "Category:Food_ingredients",
     "surface_text": [
@@ -20,7 +20,7 @@ BEN = {
     ],
 }
 OIL = {
-    "entity_url": "DBPedia>Oil",
+    "entity_url": "https://en.wikipedia.org/wiki/Oil",
     "entity": "Oil",
     "seed_category": "Category:Food_ingredients",
     "surface_text": [{"text": "oil", "how_this_record": "rdfs:label"}],

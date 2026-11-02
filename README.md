@@ -84,7 +84,7 @@ loaded into Elasticsearch (abridged, illustrative):
 ```json
 [
   {
-    "entity_url": "DBPedia>Category:Spices",
+    "entity_url": "https://en.wikipedia.org/wiki/Category:Spices",
     "entity": "spices",
     "surface_text": [
       { "text": "ben oil", "how_this_record": "rdfs:label" },
@@ -98,7 +98,7 @@ loaded into Elasticsearch (abridged, illustrative):
 
 | Field | Meaning |
 |---|---|
-| `entity_url` | `DBPedia>` followed by the node's local name |
+| `entity_url` | Wikipedia URL for the node, e.g. `https://en.wikipedia.org/wiki/Ben_oil` |
 | `entity` | The node's local name (`Ben_oil`, `Category:Spices`) |
 | `surface_text[].text` | A lowercase synonym for that node, unique within the document |
 | `surface_text[].how_this_record` | Where the synonym came from: `rdfs:label`, `alt_name`, `redirect` or `disambiguation` |

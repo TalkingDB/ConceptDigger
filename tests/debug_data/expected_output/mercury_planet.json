@@ -4,22 +4,22 @@
   "min_distinct_entities": 1,
   "must_include_records": [
     {
-      "entity_url": "DBPedia>Mercury_(planet)",
+      "entity_url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
       "surface_text": "mercury (planet)",
       "how_this_record": "rdfs:label"
     },
     {
-      "entity_url": "DBPedia>Mercury_(planet)",
+      "entity_url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
       "surface_text": "mercury",
       "how_this_record": "alt_name"
     },
     {
-      "entity_url": "DBPedia>Mercury_(planet)",
+      "entity_url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
       "surface_text": "first planet",
       "how_this_record": "redirect"
     },
     {
-      "entity_url": "DBPedia>Mercury_(planet)",
+      "entity_url": "https://en.wikipedia.org/wiki/Mercury_(planet)",
       "surface_text": "planet mercury",
       "how_this_record": "redirect"
     }

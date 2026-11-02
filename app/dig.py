@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Literal, Set, Tuple
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from .category import wikipedia_entity_url
 from .config import settings
 from .graph_store import GraphStore
 from .hydration import HydrationService, SparqlBudget
@@ -105,7 +106,7 @@ def build_documents(store: GraphStore, matched: Iterable[Tuple[str, str]]) -> Li
         if not surface_text:
             continue
         output.append({
-            "entity_url": f"DBPedia>{uri}",
+            "entity_url": wikipedia_entity_url(uri),
             "entity": uri,
             "surface_text": surface_text,
             "seed_category": seed,
