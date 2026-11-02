@@ -5,7 +5,8 @@ GraphStore wraps a single networkx.DiGraph that is the whole in-process
 category / member article), matching the direction the legacy code built.
 
 Node attributes:
-    synonyms:            list[[surface_text, source_tag]]
+    entity_url:           Wikipedia page,
+    synonyms:             list of {"text", "how_this_record"}
     structure_hydrated:   bool — have we fetched this node's children from SPARQL?
     synonyms_hydrated:    bool — have we fetched this node's labels/alt-names/
                            redirects/disambiguations from SPARQL?
@@ -28,7 +29,12 @@ from typing import Callable, Coroutine, Dict, List, Tuple
 
 import networkx as nx
 
+from .category import wikipedia_entity_url
 from .utils import convert_entity_uri_to_label
+
+
+def synonym_record(text: str, source: str) -> Dict[str, str]:
+    return {"text": text, "how_this_record": source}
 
 
 class GraphStore:
@@ -105,7 +111,7 @@ class GraphStore:
     def is_synonyms_hydrated(self, uri: str) -> bool:
         return self.graph.has_node(uri) and self.graph.nodes[uri].get("synonyms_hydrated", False)
 
-    def synonyms(self, uri: str) -> List[List[str]]:
+    def synonyms(self, uri: str) -> List[Dict[str, str]]:
         if not self.graph.has_node(uri):
             return []
         return self.graph.nodes[uri].get("synonyms", [])
@@ -123,7 +129,8 @@ class GraphStore:
         label = convert_entity_uri_to_label(uri)
         self.graph.add_node(
             uri,
-            synonyms=[[label, source]],
+            entity_url=wikipedia_entity_url(uri),
+            synonyms=[synonym_record(label, source)],
             structure_hydrated=False,
             synonyms_hydrated=False,
         )
@@ -144,12 +151,12 @@ class GraphStore:
     def add_synonyms(self, uri: str, synonyms: List[Tuple[str, str]]) -> int:
         node = self.graph.nodes[uri]
         existing = node.setdefault("synonyms", [])
-        existing_texts = {s[0] for s in existing}
+        existing_texts = {record["text"] for record in existing}
         added = 0
         for text, source in synonyms:
             if not text or text in existing_texts:
                 continue
-            existing.append([text, source])
+            existing.append(synonym_record(text, source))
             existing_texts.add(text)
             added += 1
         return added
