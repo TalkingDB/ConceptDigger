@@ -16,9 +16,10 @@ from app.export import export_dir, list_export_files
 from app.graph_store import GraphStore
 from app.main import app
 from app.routers.synonyms import patch_openapi_file_enum
+from app.category import wikipedia_entity_url
 
 BEN = {
-    "entity_url": "https://en.wikipedia.org/wiki/Ben_oil",
+    "entity_url": wikipedia_entity_url("Ben_oil"),
     "entity": "Ben_oil",
     "surface_text": [
         {"text": "ben oil", "how_this_record": "rdfs:label"},
@@ -27,7 +28,7 @@ BEN = {
     "seed_category": "Category:Food_ingredients",
 }
 TURMERIC = {
-    "entity_url": "https://en.wikipedia.org/wiki/Turmeric",
+    "entity_url": wikipedia_entity_url("Turmeric"),
     "entity": "Turmeric",
     "surface_text": [{"text": "turmeric", "how_this_record": "rdfs:label"}],
     "seed_category": "Category:Spices",

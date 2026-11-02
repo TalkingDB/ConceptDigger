@@ -18,7 +18,7 @@ from app.main import app
 
 CATEGORY = "Category:Noble_gases"
 RECORD = {
-    "entity_url": "https://en.wikipedia.org/wiki/Helium",
+    "entity_url": wikipedia_entity_url("Helium"),
     "entity": "Helium",
     "surface_text": [{"text": "helium", "how_this_record": "rdfs:label"}],
     "seed_category": CATEGORY,

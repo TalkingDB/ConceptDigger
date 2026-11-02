@@ -9,9 +9,9 @@ from starlette.datastructures import State
 
 from app.main import app
 from app.synonym_index import surface_hits
-
+from app.category import wikipedia_entity_url
 BEN = {
-    "entity_url": "https://en.wikipedia.org/wiki/Ben_oil",
+    "entity_url": wikipedia_entity_url("Ben_oil"),
     "entity": "Ben_oil",
     "seed_category": "Category:Food_ingredients",
     "surface_text": [
@@ -20,7 +20,7 @@ BEN = {
     ],
 }
 OIL = {
-    "entity_url": "https://en.wikipedia.org/wiki/Oil",
+    "entity_url": wikipedia_entity_url("Oil"),
     "entity": "Oil",
     "seed_category": "Category:Food_ingredients",
     "surface_text": [{"text": "oil", "how_this_record": "rdfs:label"}],

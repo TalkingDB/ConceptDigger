@@ -7,6 +7,7 @@ import json
 from app.export import collect_from_cache, write_exports
 from app.graph_store import GraphStore
 from app.routers.graph import _build_graph_data
+from app.category import wikipedia_entity_url
 
 SEED = "Category:Food_ingredients"
 
@@ -28,7 +29,7 @@ def test_documents_group_surface_text_per_entity(tmp_path):
 
     assert set(by_entity) == {"Category:Spices", "Ben_oil"}
     assert by_entity["Ben_oil"] == {
-        "entity_url": "https://en.wikipedia.org/wiki/Ben_oil",
+        "entity_url": wikipedia_entity_url("Ben_oil"),
         "entity": "Ben_oil",
         "surface_text": [
             {"text": "ben oil", "how_this_record": "rdfs:label"},
@@ -59,6 +60,6 @@ def test_export_file_holds_the_documents(tmp_path):
 def test_graph_nodes_include_wikipedia_entity_url(tmp_path):
     data = _build_graph_data(_store(tmp_path), SEED, 1)
     by_id = {node["id"]: node for node in data["nodes"]}
-    assert by_id["Ben_oil"]["entity_url"] == "https://en.wikipedia.org/wiki/Ben_oil"
-    assert by_id["Category:Spices"]["entity_url"] == "https://en.wikipedia.org/wiki/Category:Spices"
-    assert by_id[SEED]["entity_url"] == "https://en.wikipedia.org/wiki/Category:Food_ingredients"
+    assert by_id["Ben_oil"]["entity_url"] == wikipedia_entity_url("Ben_oil")
+    assert by_id["Category:Spices"]["entity_url"] == wikipedia_entity_url("Category:Spices")
+    assert by_id[SEED]["entity_url"] == wikipedia_entity_url("Category:Food_ingredients")
