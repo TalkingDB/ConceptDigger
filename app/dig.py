@@ -100,8 +100,8 @@ def build_documents(store: GraphStore, matched: Iterable[Tuple[str, str]]) -> Li
     output = []
     for uri, seed in matched:
         surface_text = [
-            {"text": text, "how_this_record": source}
-            for text, source in store.synonyms(uri)
+            {"text": record["text"], "how_this_record": record["how_this_record"]}
+            for record in store.synonyms(uri)
         ]
         if not surface_text:
             continue
