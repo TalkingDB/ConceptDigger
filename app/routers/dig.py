@@ -23,7 +23,7 @@ Response body:
 {
     "data": [
         {
-            "entity_url": "DBPedia>Sodium_chloride",
+            "entity_url": "https://en.wikipedia.org/wiki/Sodium_chloride",
             "entity": "Sodium_chloride",
             "surface_text": [
                 {"text": "sodium chloride", "how_this_record": "rdfs:label"}

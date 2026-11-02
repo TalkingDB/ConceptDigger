@@ -6,6 +6,8 @@ endpoint) without touching code.
 import os
 from dataclasses import dataclass, field
 
+from .configs.data_sources import DBPEDIA_RESOURCE_URL
+
 
 def _env_str(name: str, default: str) -> str:
     """Read an env var; blank or missing values fall back to default.
@@ -36,7 +38,7 @@ class Settings:
     # DBPedia resource local names (e.g. "Category:Birds") are expanded to
     # full IRIs using this prefix when querying, and stripped back to local
     # names when parsing results — this is what the graph is keyed on.
-    dbpedia_resource_prefix: str = "http://dbpedia.org/resource/"
+    dbpedia_resource_prefix: str = DBPEDIA_RESOURCE_URL
 
     # Hard ceiling on max_depth regardless of what a caller requests, so a
     # single /dig call can't fan out into an unbounded live-SPARQL crawl.

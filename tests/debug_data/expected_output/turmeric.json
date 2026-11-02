@@ -4,12 +4,12 @@
   "min_distinct_entities": 1,
   "must_include_records": [
     {
-      "entity_url": "DBPedia>Turmeric",
+      "entity_url": "https://en.wikipedia.org/wiki/Turmeric",
       "surface_text": "turmeric",
       "how_this_record": "rdfs:label"
     },
     {
-      "entity_url": "DBPedia>Turmeric",
+      "entity_url": "https://en.wikipedia.org/wiki/Turmeric",
       "surface_text": "curcuma domestica (valeton)",
       "how_this_record": "alt_name"
     }

@@ -26,7 +26,7 @@ import httpx
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.category import parse_category_url, parse_resource_url
+from app.category import parse_category_url, parse_resource_url, wikipedia_entity_url
 from app.config import settings
 from app.dig import DigResponse
 from app.graph_store import GraphStore
@@ -376,7 +376,7 @@ def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
     if not surface_text:
         return []
     return [{
-        "entity_url": f"DBPedia>{local_name}",
+        "entity_url": wikipedia_entity_url(local_name),
         "entity": local_name,
         "surface_text": surface_text,
         "seed_category": local_name,

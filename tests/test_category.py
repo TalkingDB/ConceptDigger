@@ -5,6 +5,7 @@ from app.category import (
     parse_category_url,
     parse_resource_url,
     require_max_depth,
+    wikipedia_entity_url,
 )
 from app.config import settings
 
@@ -27,6 +28,12 @@ def test_parse_category_url_rejects_plain_subject():
 
 def test_parse_resource_url_keeps_articles():
     assert parse_resource_url("http://dbpedia.org/resource/Chicken") == "Chicken"
+
+
+def test_wikipedia_entity_url_uses_english_wikipedia():
+    assert wikipedia_entity_url("Helium") == "https://en.wikipedia.org/wiki/Helium"
+    assert wikipedia_entity_url("Category:Spices") == "https://en.wikipedia.org/wiki/Category:Spices"
+    assert wikipedia_entity_url("Mercury_(planet)") == "https://en.wikipedia.org/wiki/Mercury_(planet)"
 
 
 def test_require_max_depth_rejects_values_above_cap():
