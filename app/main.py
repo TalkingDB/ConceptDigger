@@ -33,7 +33,7 @@ from .sparql_client import SparqlTransientError, sparql_client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    store = GraphStore(settings.cache_file_path)
+    store = GraphStore(settings.cache_file_path, settings.persist_interval_seconds)
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.sparql_timeout_seconds, connect=10.0, pool=10.0),
     )

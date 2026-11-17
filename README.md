@@ -187,6 +187,7 @@ All settings are environment variables.
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
+| `PERSIST_INTERVAL_SECONDS` | `30` | Minimum gap between cache writes while hydrating; a dig or hydrate request always writes once at its end. `0` writes after every hydration (slow on deep digs: each write re-serialises the whole graph) |
 | `EXPORT_MAX_FILES` | `50` | Newest export JSON files to keep under `data/exports/`; `0` disables pruning |
 | `PORT` | `5007` | Host port used by `start.sh` (the container always listens on 5007) |
 
