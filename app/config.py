@@ -66,6 +66,14 @@ class Settings:
     # a volume in production.
     cache_file_path: str = field(default_factory=lambda: _env_str("CACHE_FILE_PATH", "data/graph_cache.json"))
 
+    # Minimum gap (seconds) between writes of that cache while hydrating. Each
+    # write serialises the whole graph, so writing after every hydration made
+    # a deep /dig quadratic in CPU (the cache grows with every article, and at
+    # max_depth 4 the dig spent its time in json.dump while the SPARQL endpoint
+    # sat idle). A /dig and the /hydrate-* endpoints always write once at the
+    # end. 0 writes after every hydration, as before.
+    persist_interval_seconds: float = field(default_factory=lambda: _env_float("PERSIST_INTERVAL_SECONDS", 30))
+
     # After each successful export write, older JSON files in data/exports/
     # are deleted until at most this many remain. 0 disables pruning.
     export_max_files: int = field(default_factory=lambda: _env_int("EXPORT_MAX_FILES", 50))

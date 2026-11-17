@@ -178,6 +178,9 @@ async def run_dig(
     else:
         digged_data = build_documents(store, ((uri, uri) for uri in matched_legacy))
 
+    async with store.write_lock():  # the throttled writes may have skipped the last hydrations
+        await store.persist(force=True)
+
     no_queries_failed = budget.failed == 0
     all_queries_failed = budget.used > 0 and budget.failed == budget.used and len(digged_data) == 0
 

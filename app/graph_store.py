@@ -24,6 +24,7 @@ Design notes:
 import asyncio
 import json
 import os
+import time
 from typing import Callable, Coroutine, Dict, List, Tuple
 
 import networkx as nx
@@ -32,8 +33,11 @@ from .utils import convert_entity_uri_to_label
 
 
 class GraphStore:
-    def __init__(self, cache_file_path: str):
+    def __init__(self, cache_file_path: str, persist_interval_seconds: float = 0.0):
         self.cache_file_path = cache_file_path
+        # settings.persist_interval_seconds in the app; 0 (every write) by default
+        self.persist_interval_seconds = persist_interval_seconds
+        self._last_persist = 0.0
         self.graph = nx.DiGraph()
         self._write_lock = asyncio.Lock()
         self._inflight: Dict[str, "asyncio.Future"] = {}
@@ -53,9 +57,17 @@ class GraphStore:
         for parent, child in data.get("edges", []):
             self.graph.add_edge(parent, child)
 
-    async def persist(self) -> None:
+    async def persist(self, force: bool = False) -> None:
         """Caller must already hold write_lock(). Writes atomically via a
-        temp-file + rename so a crash mid-write can't corrupt the cache."""
+        temp-file + rename so a crash mid-write can't corrupt the cache.
+
+        At most once per `persist_interval_seconds`, unless `force` (the end
+        of a /dig or /hydrate-* request), so a deep dig doesn't re-serialise
+        the whole graph after every hydration."""
+        now = time.monotonic()
+        if not force and now - self._last_persist < self.persist_interval_seconds:
+            return
+        self._last_persist = now
         nodes = {uri: dict(attrs) for uri, attrs in self.graph.nodes(data=True)}
         edges = [[u, v] for u, v in self.graph.edges()]
         directory = os.path.dirname(self.cache_file_path) or "."

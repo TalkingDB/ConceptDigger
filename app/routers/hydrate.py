@@ -52,6 +52,8 @@ async def hydrate_category(body: HydrateCategoryRequest, request: Request):
         frontier = next_frontier
         if not frontier:
             break
+    async with store.write_lock():  # the throttled writes may have skipped the last hydrations
+        await store.persist(force=True)
 
     return {
         "category": seed,
@@ -64,10 +66,13 @@ async def hydrate_category(body: HydrateCategoryRequest, request: Request):
 
 @router.post("/hydrate-synonyms")
 async def hydrate_synonyms(body: HydrateSynonymsRequest, request: Request):
+    store = request.app.state.store
     hydration = request.app.state.hydration
     entity = require_resource(body.entity)
     budget = SparqlBudget()
     added = await hydration.hydrate_synonyms(entity, budget)
+    async with store.write_lock():  # the throttled writes may have skipped it
+        await store.persist(force=True)
     return {
         "entity": entity,
         "synonyms_added": added,
