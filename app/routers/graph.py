@@ -1170,7 +1170,7 @@ function renderTree() {{
 
             const synonymsText =
                 (node.synonyms || [])
-                    .map(pair => pair[0] + " (" + pair[1] + ")")
+                    .map(item => (item.text || "") + " (" + (item.how_this_record || "") + ")")
                     .join(", ") ||
                 "(none yet)";
 

@@ -369,9 +369,9 @@ def synonym_records(local_name: str, graph_body: dict) -> list[dict]:
     nodes = graph_body.get("nodes") if isinstance(graph_body, dict) else None
     node = next((n for n in nodes or [] if n.get("id") == local_name), None)
     surface_text = [
-        {"text": pair[0], "how_this_record": pair[1]}
-        for pair in (node or {}).get("synonyms") or []
-        if isinstance(pair, (list, tuple)) and len(pair) == 2
+        {"text": item["text"], "how_this_record": item["how_this_record"]}
+        for item in (node or {}).get("synonyms") or []
+        if isinstance(item, dict) and item.get("text") and item.get("how_this_record")
     ]
     if not surface_text:
         return []

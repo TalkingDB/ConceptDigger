@@ -63,3 +63,4 @@ def test_graph_nodes_include_wikipedia_entity_url(tmp_path):
     assert by_id["Ben_oil"]["entity_url"] == wikipedia_entity_url("Ben_oil")
     assert by_id["Category:Spices"]["entity_url"] == wikipedia_entity_url("Category:Spices")
     assert by_id[SEED]["entity_url"] == wikipedia_entity_url("Category:Food_ingredients")
+    assert by_id["Ben_oil"]["synonyms"][0] == {"text": "ben oil", "how_this_record": "rdfs:label"}
