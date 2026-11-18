@@ -313,8 +313,14 @@ Run artifacts (JUnit XML, HTML report, JSON summary) are written to
 `tests/records/`. Expected `/dig` and `/graph/data` payloads are stored in
 `tests/test_data/golden/`.
 
-GitHub Actions runs `pytest tests/` on every pull request and every push to
-`main`/`master`. Mark the `pytest` check as required in branch protection.
+The live tests (`tests/test_live_*.py`, marker `live`) query the public DBpedia
+endpoint; run only the offline ones with `pytest tests/ -m "not live"`.
+
+GitHub Actions runs the offline tests on every pull request, and the whole suite
+(live tests included) on every push to `main`/`master` and when started by hand
+(Actions tab, "Run workflow"). Pull requests skip the live tests because a slow
+or unreachable DBpedia would otherwise fail them for reasons unrelated to the
+change. Mark the `pytest` check as required in branch protection.
 
 ## Differences from the legacy service
 
