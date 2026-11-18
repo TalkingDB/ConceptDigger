@@ -219,7 +219,7 @@ def conclude(
             NETWORK,
             f"{len(failed)} of {len(calls)} live SPARQL lookup(s) failed after retries "
             f"(first: [{first.kind}] {first.error}). ConceptDigger skips such lookups, so the output may be "
-            "incomplete; the case is failed instead of being compared.",
+            "incomplete, so it is not compared with the expected output.",
         )
     if require_live_queries and not calls:
         return Verdict(EXECUTION, "No SPARQL query was sent to the live endpoint - the test did not exercise live data.")
