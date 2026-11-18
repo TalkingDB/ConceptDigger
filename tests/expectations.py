@@ -24,9 +24,9 @@ from tests.live_harness import (
     CaseRun,
     ExpectedOutputMismatch,
     HarnessError,
-    LiveSparqlFailure,
     ProbeResult,
     SparqlCall,
+    endpoint_problem,
 )
 
 ALLOWED_SOURCES = {"rdfs:label", "alt_name", "redirect", "disambiguation"}
@@ -233,7 +233,7 @@ def raise_for_verdict(v: Verdict) -> None:
     if v.kind == PASS:
         return
     if v.kind == NETWORK:
-        raise LiveSparqlFailure(v.message)
+        endpoint_problem(v.message)
     if v.kind == ASSERTION:
         raise ExpectedOutputMismatch(v.message)
     raise HarnessError(v.message)

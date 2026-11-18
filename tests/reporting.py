@@ -35,6 +35,7 @@ from tests.live_harness import (
     EXPECTED_DIR,
     INPUT_FILE,
     LiveSparqlFailure,
+    LiveSparqlSkip,
     ProbeResult,
     SparqlCall,
     load_cases,
@@ -231,7 +232,8 @@ def _overview_html(plugin: "LiveReporting") -> str:
     out.append("<p>Outcome types: <b>PASS</b> - all checks matched and every live query succeeded. "
                "<b>ASSERTION FAILURE</b> - live data was fetched but differs from the stored expected output. "
                "<b>SPARQL / NETWORK FAILURE</b> - the endpoint was unreachable, timed out, returned an error, "
-               "or lookups were skipped after retries (never counted as a pass). "
+               "or lookups were skipped after retries (never counted as a pass; the test is skipped, "
+               "or failed when TEST_LIVE_STRICT=1). "
                "<b>TEST EXECUTION ERROR</b> - the test or harness itself broke.</p></div>")
     return "".join(out)
 
@@ -318,11 +320,11 @@ def cleanup_records(records_dir: Path) -> None:
 
 
 def classify(report, call) -> str:
+    exc = call.excinfo.value if call.excinfo else None
     if report.skipped:
-        return "skipped"
+        return NETWORK if isinstance(exc, LiveSparqlSkip) else "skipped"
     if report.passed:
         return PASS
-    exc = call.excinfo.value if call.excinfo else None
     if isinstance(exc, LiveSparqlFailure):
         return NETWORK
     if isinstance(exc, AssertionError):

@@ -18,7 +18,7 @@ live SPARQL call in flight at a time. No mocked SPARQL data is involved.
 import pytest
 
 from tests.expectations import conclude, dig_checks, flatten_documents, raise_for_verdict
-from tests.live_harness import get_case, load_cases, load_expected
+from tests.live_harness import endpoint_problem, get_case, had_endpoint_trouble, load_cases, load_expected
 from tests.reporting import LiveView, register_view
 
 CASES = load_cases()
@@ -105,4 +105,9 @@ def test_live_dig_batch_within_time_budget(live_dig_results, sparql_probe, live_
         ),
     )
     if not ok:
+        # Retries and timeouts of a misbehaving endpoint are what made the batch slow:
+        # not ConceptDigger's time to judge. Over budget with a healthy endpoint still fails.
+        troubled = [cid for cid, run in live_dig_results.runs.items() if had_endpoint_trouble(run)]
+        if troubled:
+            endpoint_problem(f"{check.detail}, while the endpoint failed lookups in: {', '.join(sorted(troubled))}")
         raise AssertionError(verdict.message)
