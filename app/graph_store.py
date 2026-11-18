@@ -9,6 +9,11 @@ Node attributes:
     structure_hydrated:   bool — have we fetched this node's children from SPARQL?
     synonyms_hydrated:    bool — have we fetched this node's labels/alt-names/
                            redirects/disambiguations from SPARQL?
+    abstract:             str | None — the page's Wikipedia intro text (raw,
+                           unreviewed); None if the page has none
+    abstract_fetched_at:  ISO date the abstract was fetched
+    abstract_hydrated:    bool — have we asked Wikipedia for this abstract?
+                           Category nodes are never hydrated.
 
 Design notes:
 - The graph boots empty and is populated lazily. On startup we try to load a
@@ -25,7 +30,7 @@ import asyncio
 import json
 import os
 import time
-from typing import Callable, Coroutine, Dict, List, Tuple
+from typing import Callable, Coroutine, Dict, List, Optional, Tuple
 
 import networkx as nx
 
@@ -121,6 +126,36 @@ class GraphStore:
         if not self.graph.has_node(uri):
             return []
         return self.graph.nodes[uri].get("synonyms", [])
+
+    def is_abstract_hydrated(self, uri: str) -> bool:
+        return self.graph.has_node(uri) and self.graph.nodes[uri].get("abstract_hydrated", False)
+
+    def set_abstract(self, uri: str, abstract: Optional[str], fetched_at: str) -> None:
+        node = self.graph.nodes[uri]
+        node["abstract"] = abstract
+        node["abstract_fetched_at"] = fetched_at
+        node["abstract_hydrated"] = True
+
+    def descendants(self, root: str, depth: int) -> List[str]:
+        """Nodes reachable from root within `depth` levels, root included,
+        read from the cache only (no hydration)."""
+        if not self.graph.has_node(root):
+            return []
+        seen = {root}
+        order = [root]
+        frontier = [root]
+        for _level in range(depth):
+            next_frontier = []
+            for node in frontier:
+                for child in self.graph.successors(node):
+                    if child not in seen:
+                        seen.add(child)
+                        order.append(child)
+                        next_frontier.append(child)
+            frontier = next_frontier
+            if not frontier:
+                break
+        return order
 
     def children(self, uri: str) -> List[str]:
         if not self.graph.has_node(uri):

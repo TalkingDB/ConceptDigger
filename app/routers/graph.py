@@ -62,6 +62,12 @@ def _node_summary(store: GraphStore, uri: str) -> Dict[str, object]:
         # [[text, source_tag], ...] e.g. [["chicken", "rdfs:label"], ...] —
         # store.synonyms() already defaults to [] for a missing node/attr.
         "synonyms": store.synonyms(uri),
+        # Raw Wikipedia intro text, NOT reviewed: consumers must not show it
+        # to end users as-is. None when the page has none, is a category, or
+        # hasn't been hydrated yet (abstract_hydrated tells those apart).
+        "abstract": attrs.get("abstract"),
+        "abstract_fetched_at": attrs.get("abstract_fetched_at"),
+        "abstract_hydrated": attrs.get("abstract_hydrated", False),
     }
 
 

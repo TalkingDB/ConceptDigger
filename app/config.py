@@ -78,6 +78,26 @@ class Settings:
     # are deleted until at most this many remain. 0 disables pruning.
     export_max_files: int = field(default_factory=lambda: _env_int("EXPORT_MAX_FILES", 50))
 
+    # Page abstracts (the Wikipedia intro text) come from the MediaWiki API,
+    # because public DBpedia no longer serves rdfs:comment / dbo:abstract.
+    # Wikipedia rejects requests (HTTP 403) whose User-Agent has no contact
+    # details, so the default names this project's repository.
+    wikipedia_api_url: str = field(
+        default_factory=lambda: _env_str("WIKIPEDIA_API_URL", "https://en.wikipedia.org/w/api.php")
+    )
+    wikipedia_user_agent: str = field(
+        default_factory=lambda: _env_str(
+            "WIKIPEDIA_USER_AGENT", "ConceptDigger/2.0 (https://github.com/TalkingDB/ConceptDigger)"
+        )
+    )
+    wikipedia_timeout_seconds: float = field(default_factory=lambda: _env_float("WIKIPEDIA_TIMEOUT_SECONDS", 20))
+    # Requests are made one after another; this gap keeps a full-corpus
+    # backfill polite towards the public API.
+    wikipedia_min_interval_seconds: float = field(
+        default_factory=lambda: _env_float("WIKIPEDIA_MIN_INTERVAL_SECONDS", 0.2)
+    )
+    wikipedia_max_retries: int = field(default_factory=lambda: _env_int("WIKIPEDIA_MAX_RETRIES", 3))
+
     elasticsearch_url: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_URL", "http://localhost:9200"))
     elasticsearch_index: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_INDEX", "train-synonyms"))
 
