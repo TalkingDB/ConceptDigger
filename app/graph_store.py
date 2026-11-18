@@ -42,7 +42,10 @@ class GraphStore:
         self.cache_file_path = cache_file_path
         # settings.persist_interval_seconds in the app; 0 (every write) by default
         self.persist_interval_seconds = persist_interval_seconds
-        self._last_persist = 0.0
+        # None: not written yet by this process. Not 0.0: time.monotonic() can be
+        # smaller than the interval on a freshly booted machine (a CI runner), which
+        # would wrongly skip the first write.
+        self._last_persist: Optional[float] = None
         self.graph = nx.DiGraph()
         self._write_lock = asyncio.Lock()
         self._inflight: Dict[str, "asyncio.Future"] = {}
@@ -70,7 +73,8 @@ class GraphStore:
         of a /dig or /hydrate-* request), so a deep dig doesn't re-serialise
         the whole graph after every hydration."""
         now = time.monotonic()
-        if not force and now - self._last_persist < self.persist_interval_seconds:
+        recent = self._last_persist is not None and now - self._last_persist < self.persist_interval_seconds
+        if not force and recent:
             return
         self._last_persist = now
         nodes = {uri: dict(attrs) for uri, attrs in self.graph.nodes(data=True)}
