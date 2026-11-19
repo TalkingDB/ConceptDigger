@@ -216,22 +216,39 @@ async def test_hydrate_abstracts_saves_last_batches_despite_throttled_writes(tmp
     assert saved["nodes"][pages[-1]]["abstract"] == f"{pages[-1]} abstract."
 
 
-async def test_hydrate_abstracts_leaves_failed_batch_for_retry(tmp_path):
-    pages = [f"Page_{i}" for i in range(25)]
+async def test_hydrate_abstracts_stops_at_the_first_failed_batch_and_a_later_call_resumes(tmp_path):
+    pages = [f"Page_{i}" for i in range(65)]
     store = seeded_store(tmp_path, pages)
-    hydration = HydrationService(store, None, None, StubWikipedia(fail_on={"Page_0"}))
+    wiki = StubWikipedia(fail_on={"Page_20"})
+    hydration = HydrationService(store, None, None, wiki)
 
     report = await hydration.hydrate_abstracts(pages)
-    assert (report.failed, report.with_abstract) == (20, 5)
-    assert not store.is_abstract_hydrated("Page_0")
-    assert store.is_abstract_hydrated("Page_24")
+    # batch 1 done, batch 2 failed, batches 3-4 never sent: one outage costs one batch's retries
+    assert len(wiki.batches) == 2
+    assert (report.with_abstract, report.failed, report.remaining) == (20, 20, 25)
+    assert report.stopped == "wikipedia_unavailable"
+    assert store.is_abstract_hydrated("Page_0") and not store.is_abstract_hydrated("Page_20")
+    assert not store.is_abstract_hydrated("Page_64")
 
-    # Next run retries only the failed batch.
+    # Next run fetches only what is left.
     retry = StubWikipedia()
     hydration.wikipedia_client = retry
     report = await hydration.hydrate_abstracts(pages)
-    assert retry.batches == [pages[:20]]
-    assert (report.requested, report.failed, report.with_abstract) == (20, 0, 20)
+    assert retry.batches == [pages[20:40], pages[40:60], pages[60:]]
+    assert (report.requested, report.failed, report.remaining, report.stopped) == (45, 0, 0, None)
+
+
+async def test_hydrate_abstracts_fetches_at_most_limit_pages_per_call(tmp_path):
+    pages = [f"Page_{i}" for i in range(45)]
+    store = seeded_store(tmp_path, pages)
+    wiki = StubWikipedia()
+    hydration = HydrationService(store, None, None, wiki)
+
+    first = await hydration.hydrate_abstracts(pages, limit=30)
+    assert (first.requested, first.with_abstract, first.remaining) == (30, 30, 15)
+    assert [len(b) for b in wiki.batches] == [20, 10]
+    second = await hydration.hydrate_abstracts(pages, limit=30)
+    assert (second.requested, second.remaining) == (15, 0)
 
 
 async def test_hydrate_abstracts_refresh_refetches(tmp_path):
@@ -327,6 +344,42 @@ async def test_hydrate_abstracts_backfills_cached_graph(api):
     assert again["requested"] == 0 and again["wikipedia_calls_used"] == 0
     refreshed = (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food", "refresh": True})).json()
     assert refreshed["requested"] == 2
+
+
+async def test_hydrate_abstracts_repeats_until_nothing_remains(api):
+    client, store, wiki = api
+    store.ensure_node("Category:Food", "rdfs:label")
+    for i in range(25):
+        store.ensure_node(f"Page_{i}", "rdfs:label")
+        store.ensure_edge("Category:Food", f"Page_{i}")
+
+    first = (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food", "limit": 20})).json()
+    assert (first["limit"], first["requested"], first["remaining"]) == (20, 20, 5)
+    second = (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food", "limit": 20})).json()
+    assert (second["requested"], second["remaining"]) == (5, 0)
+
+
+async def test_hydrate_abstracts_one_call_per_root_at_a_time(api):
+    client, store, _wiki = api
+    store.ensure_node("Category:Food", "rdfs:label")
+    hydration = client._transport.app.state.hydration
+    hydration.abstract_roots_running.add("Category:Food")       # a call for this root is in progress
+    busy = await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food"})
+    assert busy.status_code == 409
+    hydration.abstract_roots_running.discard("Category:Food")
+    assert (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food"})).status_code == 200
+    assert hydration.abstract_roots_running == set()           # released after the call
+
+
+async def test_dig_fetches_at_most_abstracts_per_request(api, monkeypatch):
+    import dataclasses
+
+    from app.config import settings
+    client, _store, wiki = api
+    monkeypatch.setattr("app.dig.settings", dataclasses.replace(settings, abstracts_per_request=1))
+    resp = await client.post("/api/v1/dig", json={"categories": ["Category:Food"], "max_depth": 1})
+    assert resp.status_code == 200
+    assert sum(len(b) for b in wiki.batches) == 1
 
 
 async def test_hydrate_abstracts_unknown_root_is_404(api):

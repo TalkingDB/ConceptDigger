@@ -55,13 +55,15 @@ class SparqlBudget:
 
 @dataclass
 class AbstractsReport:
-    """What one abstract-hydration run did. `failed` nodes stay un-hydrated
-    and are retried by the next /dig or /hydrate-abstracts call."""
+    """What one abstract-hydration run did. `failed` and `remaining` nodes stay
+    un-hydrated and are fetched by the next /dig or /hydrate-abstracts call."""
 
-    requested: int = 0
+    requested: int = 0          # pages this call set out to fetch (at most its limit)
     with_abstract: int = 0
     without_abstract: int = 0
-    failed: int = 0
+    failed: int = 0             # in the batch Wikipedia failed on
+    remaining: int = 0          # still without an abstract: over the limit, or after a stop
+    stopped: Optional[str] = None   # "wikipedia_unavailable" when the run stopped early
     wikipedia_calls_used: int = 0
 
 
@@ -77,6 +79,7 @@ class HydrationService:
         self.sparql_client = sparql_client
         self.http_client = http_client
         self.wikipedia_client = wikipedia_client
+        self.abstract_roots_running: set = set()   # roots with a /hydrate-abstracts call in progress
 
     async def _lookup( self, kind: str, local_name: str, fetch, budget: SparqlBudget) -> Tuple[list | None, bool]:
         """Run one SPARQL fetch and record transient failures."""
@@ -168,14 +171,19 @@ class HydrationService:
     # ------------------------------------------------------------------
     # abstracts: Wikipedia intro text of page nodes, many pages per call
     # ------------------------------------------------------------------
-    async def hydrate_abstracts(self, local_names: Iterable[str], refresh: bool = False) -> AbstractsReport:
-        """Fetch the abstract of every page node in `local_names` that does not
-        have one yet (or all of them when `refresh`). Category nodes are
-        skipped: they are not ingredients and have no article.
+    async def hydrate_abstracts(self, local_names: Iterable[str], refresh: bool = False,
+                                limit: Optional[int] = None) -> AbstractsReport:
+        """Fetch the abstract of the page nodes in `local_names` that do not have
+        one yet (or all of them when `refresh`), at most `limit` of them; the rest
+        are reported as `remaining`. Category nodes are skipped: they are not
+        ingredients and have no article.
 
-        A batch that fails transiently is left un-hydrated so a later call
-        retries it. The cache is saved every PERSIST_EVERY_BATCHES batches and
-        at the end, so a crash loses at most that much (re-fetchable) work.
+        The first batch that fails transiently stops the run: Wikipedia is then
+        likely down, and each further batch would wait out the same timeouts and
+        retries. That batch is `failed`, the rest `remaining`; both stay
+        un-hydrated for a later call. The cache is saved every
+        PERSIST_EVERY_BATCHES batches and at the end, so a crash loses at most
+        that much (re-fetchable) work.
         """
         report = AbstractsReport()
         if self.wikipedia_client is None:
@@ -189,6 +197,9 @@ class HydrationService:
             if self.store.is_abstract_hydrated(name) and not refresh:
                 continue
             pending.append(name)
+        if limit is not None and len(pending) > limit:
+            report.remaining = len(pending) - limit
+            pending = pending[:limit]
         report.requested = len(pending)
 
         today = dt.date.today().isoformat()
@@ -203,9 +214,13 @@ class HydrationService:
                 try:
                     abstracts = await self.wikipedia_client.fetch_abstracts(self.http_client, fetchable)
                 except WikipediaTransientError as exc:
+                    left = len(pending) - start - len(batch)
                     report.failed += len(batch)
-                    logger.warning("Wikipedia abstracts failed for %d nodes, will retry later: %s", len(batch), exc)
-                    continue
+                    report.remaining += left
+                    report.stopped = "wikipedia_unavailable"
+                    logger.warning("Wikipedia abstracts failed for %d nodes; stopping, %d more left for a "
+                                   "later call: %s", len(batch), left, exc)
+                    break
 
             async with self.store.write_lock():
                 for name in batch:
@@ -226,9 +241,9 @@ class HydrationService:
             async with self.store.write_lock():
                 await self.store.persist(force=True)
         logger.info(
-            "abstracts hydrated: requested=%d with=%d without=%d failed=%d calls=%d",
+            "abstracts hydrated: requested=%d with=%d without=%d failed=%d remaining=%d calls=%d",
             report.requested, report.with_abstract, report.without_abstract,
-            report.failed, report.wikipedia_calls_used,
+            report.failed, report.remaining, report.wikipedia_calls_used,
         )
         return report
 

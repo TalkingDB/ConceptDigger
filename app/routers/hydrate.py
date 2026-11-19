@@ -13,6 +13,7 @@ POST /api/v1/hydrate-abstracts — backfills the Wikipedia abstract of every
     page already cached under a root category (no SPARQL calls).
 """
 from dataclasses import asdict
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -74,12 +75,19 @@ class HydrateAbstractsRequest(BaseModel):
     root: str = Field(..., description="Category whose cached pages get abstracts, e.g. 'Category:Food_ingredients'.")
     depth: int = Field(6, ge=0, description="How many levels of cached children to walk, as in /graph/data.")
     refresh: bool = Field(False, description="Re-fetch abstracts that were already fetched.")
+    limit: Optional[int] = Field(
+        None, ge=1,
+        description="Most pages to fetch in this call (default ABSTRACTS_PER_REQUEST). Repeat the call "
+                    "until `remaining` is 0.",
+    )
 
 
 @router.post("/hydrate-abstracts")
 async def hydrate_abstracts(body: HydrateAbstractsRequest, request: Request):
-    """Backfill Wikipedia abstracts for every page already cached under `root`.
-    Never hydrates structure or synonyms; run /dig or /hydrate-category first."""
+    """Backfill Wikipedia abstracts for pages already cached under `root`, up to
+    `limit` per call; repeat until `remaining` is 0. One call per root at a time
+    (409 otherwise). Never hydrates structure or synonyms; run /dig or
+    /hydrate-category first."""
     store = request.app.state.store
     hydration = request.app.state.hydration
     root = require_resource(body.root)
@@ -89,8 +97,17 @@ async def hydrate_abstracts(body: HydrateAbstractsRequest, request: Request):
             status_code=404,
             detail=f"{root} is not in the cached graph. Run /dig or /hydrate-category first.",
         )
-    report = await hydration.hydrate_abstracts(store.descendants(root, depth), refresh=body.refresh)
-    return {"root": root, "depth": depth, "refresh": body.refresh, **asdict(report)}
+    if root in hydration.abstract_roots_running:
+        raise HTTPException(status_code=409, detail=f"Abstracts for {root} are already being fetched; "
+                                                    "call again when that call has finished.")
+    limit = body.limit or settings.abstracts_per_request
+    hydration.abstract_roots_running.add(root)
+    try:
+        report = await hydration.hydrate_abstracts(store.descendants(root, depth), refresh=body.refresh,
+                                                   limit=limit)
+    finally:
+        hydration.abstract_roots_running.discard(root)
+    return {"root": root, "depth": depth, "refresh": body.refresh, "limit": limit, **asdict(report)}
 
 
 @router.post("/hydrate-synonyms")

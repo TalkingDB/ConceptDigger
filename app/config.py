@@ -97,6 +97,9 @@ class Settings:
         default_factory=lambda: _env_float("WIKIPEDIA_MIN_INTERVAL_SECONDS", 0.2)
     )
     wikipedia_max_retries: int = field(default_factory=lambda: _env_int("WIKIPEDIA_MAX_RETRIES", 3))
+    # Most pages one /dig or /hydrate-abstracts call fetches abstracts for (20 per Wikipedia
+    # call), so a request stays well inside gateway timeouts; the response says how many remain.
+    abstracts_per_request: int = field(default_factory=lambda: _env_int("ABSTRACTS_PER_REQUEST", 1000))
 
     elasticsearch_url: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_URL", "http://localhost:9200"))
     elasticsearch_index: str = field(default_factory=lambda: _env_str("ELASTICSEARCH_INDEX", "train-synonyms"))

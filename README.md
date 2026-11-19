@@ -156,19 +156,22 @@ Returns `entity`, `synonyms_added` and `sparql_calls_used`.
 
 ### `POST /api/v1/hydrate-abstracts`
 
-Fetches the abstract (the Wikipedia intro text) of every page already cached
-under a category. Use it once to backfill a cache built before abstracts
-existed. `/dig` already fetches abstracts for the pages it returns.
+Fetches the abstract (the Wikipedia intro text) of the pages already cached
+under a category, at most `limit` pages per call. Use it to backfill a cache
+built before abstracts existed: **repeat the call until `remaining` is 0**.
+`/dig` also fetches abstracts for the pages it returns, up to the same limit.
 
 ```json
-{ "root": "Category:Food_ingredients", "depth": 6, "refresh": false }
+{ "root": "Category:Food_ingredients", "depth": 6, "refresh": false, "limit": 1000 }
 ```
 
 Only reads the cached graph and never calls SPARQL; returns 404 if `root` is
-not cached. Pages that already have an abstract are skipped unless `refresh`
-is true. Returns `requested`, `with_abstract`, `without_abstract`, `failed`
-and `wikipedia_calls_used`. Pages in `failed` were not fetched (Wikipedia was
-unavailable); calling it again retries only them.
+not cached, and 409 while another call for the same `root` is running. Pages
+that already have an abstract are skipped unless `refresh` is true. Returns
+`requested`, `with_abstract`, `without_abstract`, `failed`, `remaining`,
+`stopped` and `wikipedia_calls_used`. The first batch Wikipedia fails on stops
+the call (`stopped: "wikipedia_unavailable"`): that batch is `failed` and the
+rest `remaining`, and calling again fetches only those.
 
 Abstracts come from Wikipedia, not DBpedia: public DBpedia no longer serves
 `rdfs:comment` / `dbo:abstract`. One call covers up to 20 pages. Disambiguation
@@ -219,6 +222,7 @@ All settings are environment variables.
 | `WIKIPEDIA_TIMEOUT_SECONDS` | `20` | Read timeout per Wikipedia call |
 | `WIKIPEDIA_MIN_INTERVAL_SECONDS` | `0.2` | Minimum gap between Wikipedia calls |
 | `WIKIPEDIA_MAX_RETRIES` | `3` | Retries on timeouts, 429/502/503/504 and API rate-limit errors |
+| `ABSTRACTS_PER_REQUEST` | `1000` | Most pages one `/dig` or `/hydrate-abstracts` call fetches abstracts for (50 Wikipedia calls), so a request stays inside gateway timeouts |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
 | `PERSIST_INTERVAL_SECONDS` | `30` | Minimum gap between cache writes while hydrating; a dig or hydrate request always writes once at its end. `0` writes after every hydration (slow on deep digs: each write re-serialises the whole graph) |
 | `EXPORT_MAX_FILES` | `50` | Newest export JSON files to keep under `data/exports/`; `0` disables pruning |

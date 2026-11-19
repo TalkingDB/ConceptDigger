@@ -169,8 +169,9 @@ async def run_dig(
             await hydration.hydrate_synonyms(uri, budget)
     # Abstracts don't affect /dig's output or status: a Wikipedia outage only
     # leaves those nodes un-hydrated, and the next /dig or /hydrate-abstracts
-    # call retries them.
-    await hydration.hydrate_abstracts(all_uris)
+    # call retries them. Capped, so a dig over a large uncached root does not
+    # outlive gateway timeouts; /hydrate-abstracts fetches the rest.
+    await hydration.hydrate_abstracts(all_uris, limit=settings.abstracts_per_request)
 
     logger.info(
         "dig batch finished: seeds=%d matched=%d sparql_calls_used=%d",
