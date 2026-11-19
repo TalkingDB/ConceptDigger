@@ -74,7 +74,8 @@ async def hydrate_category(body: HydrateCategoryRequest, request: Request):
 class HydrateAbstractsRequest(BaseModel):
     root: str = Field(..., description="Category whose cached pages get abstracts, e.g. 'Category:Food_ingredients'.")
     depth: int = Field(6, ge=0, description="How many levels of cached children to walk, as in /graph/data.")
-    refresh: bool = Field(False, description="Re-fetch abstracts that were already fetched.")
+    refresh: bool = Field(False, description="Re-fetch abstracts that were already fetched, except those "
+                                             "fetched today, so repeated calls make progress.")
     limit: Optional[int] = Field(
         None, ge=1,
         description="Most pages to fetch in this call (default ABSTRACTS_PER_REQUEST). Repeat the call "

@@ -167,7 +167,8 @@ built before abstracts existed: **repeat the call until `remaining` is 0**.
 
 Only reads the cached graph and never calls SPARQL; returns 404 if `root` is
 not cached, and 409 while another call for the same `root` is running. Pages
-that already have an abstract are skipped unless `refresh` is true. Returns
+that already have an abstract are skipped unless `refresh` is true; a refresh
+skips pages fetched today, so repeated refresh calls also reach `remaining: 0`. Returns
 `requested`, `with_abstract`, `without_abstract`, `failed`, `remaining`,
 `stopped` and `wikipedia_calls_used`. The first batch Wikipedia fails on stops
 the call (`stopped: "wikipedia_unavailable"`): that batch is `failed` and the

@@ -174,7 +174,8 @@ class HydrationService:
     async def hydrate_abstracts(self, local_names: Iterable[str], refresh: bool = False,
                                 limit: Optional[int] = None) -> AbstractsReport:
         """Fetch the abstract of the page nodes in `local_names` that do not have
-        one yet (or all of them when `refresh`), at most `limit` of them; the rest
+        one yet (or, when `refresh`, every page not already fetched today), at most
+        `limit` of them; the rest
         are reported as `remaining`. Category nodes are skipped: they are not
         ingredients and have no article.
 
@@ -190,11 +191,15 @@ class HydrationService:
             logger.warning("no Wikipedia client configured: abstracts not hydrated")
             return report
 
+        today = dt.date.today().isoformat()
         pending = []
         for name in dict.fromkeys(local_names):
             if not self.store.has_node(name) or name.startswith("Category:"):
                 continue
-            if self.store.is_abstract_hydrated(name) and not refresh:
+            # A refresh skips pages already fetched today, so repeated limited calls
+            # move on to the next pages instead of re-fetching the first ones.
+            if self.store.is_abstract_hydrated(name) and (
+                    not refresh or (self.store.graph.nodes[name].get("abstract_fetched_at") or "") >= today):
                 continue
             pending.append(name)
         if limit is not None and len(pending) > limit:
@@ -202,7 +207,6 @@ class HydrationService:
             pending = pending[:limit]
         report.requested = len(pending)
 
-        today = dt.date.today().isoformat()
         unsaved = 0
         for start in range(0, len(pending), MAX_TITLES_PER_REQUEST):
             batch = pending[start:start + MAX_TITLES_PER_REQUEST]

@@ -259,7 +259,27 @@ async def test_hydrate_abstracts_refresh_refetches(tmp_path):
     await hydration.hydrate_abstracts(["A", "B"])
     assert len(wiki.batches) == 1  # already hydrated: no second call
     await hydration.hydrate_abstracts(["A", "B"], refresh=True)
+    assert len(wiki.batches) == 1  # fetched today: a refresh leaves them
+    for name in ("A", "B"):
+        store.graph.nodes[name]["abstract_fetched_at"] = "2026-01-01"
+    await hydration.hydrate_abstracts(["A", "B"], refresh=True)
     assert len(wiki.batches) == 2
+
+
+async def test_a_limited_refresh_makes_progress_call_after_call(tmp_path):
+    pages = [f"Page_{i}" for i in range(45)]
+    store = seeded_store(tmp_path, pages)
+    hydration = HydrationService(store, None, None, StubWikipedia())
+    await hydration.hydrate_abstracts(pages)
+    for name in pages:
+        store.graph.nodes[name]["abstract_fetched_at"] = "2026-01-01"   # fetched on an earlier day
+
+    wiki = StubWikipedia()
+    hydration.wikipedia_client = wiki
+    reports = [await hydration.hydrate_abstracts(pages, refresh=True, limit=20) for _ in range(4)]
+    assert [r.requested for r in reports] == [20, 20, 5, 0]
+    assert [r.remaining for r in reports] == [25, 5, 0, 0]
+    assert sorted(n for b in wiki.batches for n in b) == sorted(pages)     # every page once, none twice
 
 
 async def test_hydrate_abstracts_skips_names_wikipedia_cannot_take(tmp_path):
@@ -342,7 +362,9 @@ async def test_hydrate_abstracts_backfills_cached_graph(api):
 
     again = (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food"})).json()
     assert again["requested"] == 0 and again["wikipedia_calls_used"] == 0
-    refreshed = (await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food", "refresh": True})).json()
+    for page in ["Citric_acid", "Sugar"]:
+        store.graph.nodes[page]["abstract_fetched_at"] = "2026-01-01"
+    refreshed =(await client.post("/api/v1/hydrate-abstracts", json={"root": "Category:Food", "refresh": True})).json()
     assert refreshed["requested"] == 2
 
 
