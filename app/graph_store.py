@@ -9,6 +9,11 @@ Node attributes:
     structure_hydrated:   bool — have we fetched this node's children from SPARQL?
     synonyms_hydrated:    bool — have we fetched this node's labels/alt-names/
                            redirects/disambiguations from SPARQL?
+    abstract:             str | None — the page's Wikipedia intro text (raw,
+                           unreviewed); None if the page has none
+    abstract_fetched_at:  ISO date the abstract was fetched
+    abstract_hydrated:    bool — have we asked Wikipedia for this abstract?
+                           Category nodes are never hydrated.
 
 Design notes:
 - The graph boots empty and is populated lazily. On startup we try to load a
@@ -25,7 +30,7 @@ import asyncio
 import json
 import os
 import time
-from typing import Callable, Coroutine, Dict, List, Tuple
+from typing import Callable, Coroutine, Dict, List, Optional, Tuple
 
 import networkx as nx
 
@@ -37,7 +42,10 @@ class GraphStore:
         self.cache_file_path = cache_file_path
         # settings.persist_interval_seconds in the app; 0 (every write) by default
         self.persist_interval_seconds = persist_interval_seconds
-        self._last_persist = 0.0
+        # None: not written yet by this process. Not 0.0: time.monotonic() can be
+        # smaller than the interval on a freshly booted machine (a CI runner), which
+        # would wrongly skip the first write.
+        self._last_persist: Optional[float] = None
         self.graph = nx.DiGraph()
         self._write_lock = asyncio.Lock()
         self._inflight: Dict[str, "asyncio.Future"] = {}
@@ -65,7 +73,8 @@ class GraphStore:
         of a /dig or /hydrate-* request), so a deep dig doesn't re-serialise
         the whole graph after every hydration."""
         now = time.monotonic()
-        if not force and now - self._last_persist < self.persist_interval_seconds:
+        recent = self._last_persist is not None and now - self._last_persist < self.persist_interval_seconds
+        if not force and recent:
             return
         self._last_persist = now
         nodes = {uri: dict(attrs) for uri, attrs in self.graph.nodes(data=True)}
@@ -121,6 +130,36 @@ class GraphStore:
         if not self.graph.has_node(uri):
             return []
         return self.graph.nodes[uri].get("synonyms", [])
+
+    def is_abstract_hydrated(self, uri: str) -> bool:
+        return self.graph.has_node(uri) and self.graph.nodes[uri].get("abstract_hydrated", False)
+
+    def set_abstract(self, uri: str, abstract: Optional[str], fetched_at: str) -> None:
+        node = self.graph.nodes[uri]
+        node["abstract"] = abstract
+        node["abstract_fetched_at"] = fetched_at
+        node["abstract_hydrated"] = True
+
+    def descendants(self, root: str, depth: int) -> List[str]:
+        """Nodes reachable from root within `depth` levels, root included,
+        read from the cache only (no hydration)."""
+        if not self.graph.has_node(root):
+            return []
+        seen = {root}
+        order = [root]
+        frontier = [root]
+        for _level in range(depth):
+            next_frontier = []
+            for node in frontier:
+                for child in self.graph.successors(node):
+                    if child not in seen:
+                        seen.add(child)
+                        order.append(child)
+                        next_frontier.append(child)
+            frontier = next_frontier
+            if not frontier:
+                break
+        return order
 
     def children(self, uri: str) -> List[str]:
         if not self.graph.has_node(uri):

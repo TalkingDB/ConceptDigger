@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main, master]
+  # Run the whole suite, live tests included, on any branch from the Actions tab.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -21,8 +23,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      # Pull requests run the offline tests only: the live tests depend on the public
+      # DBpedia endpoint, which is often slow or down and then fails every PR. Pushes to
+      # main/master (which gate the deployment) and manual runs still run everything.
       - name: Run test suite
-        run: pytest tests/
+        env:
+          MARKERS: ${{ github.event_name == 'pull_request' && 'not live' || '' }}
+        run: pytest tests/ -m "$MARKERS"
 
       - name: Upload test records
         if: always()

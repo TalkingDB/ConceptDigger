@@ -29,6 +29,7 @@ from .hydration import HydrationService
 from .routers import dig, health, hydrate, graph, graph_data, synonyms
 from .routers.synonyms import patch_openapi_file_enum
 from .sparql_client import SparqlTransientError, sparql_client
+from .wikipedia_client import wikipedia_client
 
 
 @asynccontextmanager
@@ -37,7 +38,7 @@ async def lifespan(app: FastAPI):
     http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(settings.sparql_timeout_seconds, connect=10.0, pool=10.0),
     )
-    hydration = HydrationService(store, sparql_client, http_client)
+    hydration = HydrationService(store, sparql_client, http_client, wikipedia_client)
 
     app.state.store = store
     app.state.hydration = hydration

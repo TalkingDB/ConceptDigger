@@ -48,7 +48,8 @@ def live_config() -> LiveConfig:
 @pytest.fixture(scope="session")
 def sparql_probe(live_config) -> ProbeResult:
     """One cheap live query up front. Tests call .require() so a dead endpoint
-    shows up as SPARQL/NETWORK FAILURE in every live test (never as a pass)."""
+    shows up as SPARQL/NETWORK in every live test (a skip, or a failure with
+    TEST_LIVE_STRICT=1; never as a pass)."""
     probe = run_probe(live_config)
     reporting.STATE.probe = probe
     return probe

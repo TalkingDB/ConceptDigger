@@ -10,14 +10,22 @@ new nodes/edges/synonyms into the GraphStore. Two mechanisms live here:
     at the same moment both wanting to hydrate "Category:Birds", only one
     actually fires the SPARQL calls; the other awaits that same result.
 """
+import datetime as dt
 import logging
-from typing import List, Tuple
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, Tuple
 
 import httpx
 
 from .graph_store import GraphStore
 from .sparql_client import SparqlClient, SparqlTransientError
 from .utils import convert_entity_uri_to_label
+from .wikipedia_client import (
+    MAX_TITLES_PER_REQUEST,
+    WikipediaClient,
+    WikipediaTransientError,
+    is_valid_title,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +33,10 @@ SOURCE_LABEL = "rdfs:label"
 SOURCE_ALT_NAME = "alt_name"
 SOURCE_DISAMBIGUATION = "disambiguation"
 SOURCE_REDIRECT = "redirect"
+
+# Saving the whole graph cache is the slow part of a large abstract backfill,
+# so it is saved every this many Wikipedia batches instead of after each one.
+PERSIST_EVERY_BATCHES = 25
 
 
 class SparqlBudget:
@@ -41,11 +53,33 @@ class SparqlBudget:
         self.failed += n
 
 
+@dataclass
+class AbstractsReport:
+    """What one abstract-hydration run did. `failed` and `remaining` nodes stay
+    un-hydrated and are fetched by the next /dig or /hydrate-abstracts call."""
+
+    requested: int = 0          # pages this call set out to fetch (at most its limit)
+    with_abstract: int = 0
+    without_abstract: int = 0
+    failed: int = 0             # in the batch Wikipedia failed on
+    remaining: int = 0          # still without an abstract: over the limit, or after a stop
+    stopped: Optional[str] = None   # "wikipedia_unavailable" when the run stopped early
+    wikipedia_calls_used: int = 0
+
+
 class HydrationService:
-    def __init__(self, store: GraphStore, sparql_client: SparqlClient, http_client: httpx.AsyncClient):
+    def __init__(
+        self,
+        store: GraphStore,
+        sparql_client: SparqlClient,
+        http_client: httpx.AsyncClient,
+        wikipedia_client: Optional[WikipediaClient] = None,
+    ):
         self.store = store
         self.sparql_client = sparql_client
         self.http_client = http_client
+        self.wikipedia_client = wikipedia_client
+        self.abstract_roots_running: set = set()   # roots with a /hydrate-abstracts call in progress
 
     async def _lookup( self, kind: str, local_name: str, fetch, budget: SparqlBudget) -> Tuple[list | None, bool]:
         """Run one SPARQL fetch and record transient failures."""
@@ -133,6 +167,89 @@ class HydrationService:
                 exc,
             )
             return None
+
+    # ------------------------------------------------------------------
+    # abstracts: Wikipedia intro text of page nodes, many pages per call
+    # ------------------------------------------------------------------
+    async def hydrate_abstracts(self, local_names: Iterable[str], refresh: bool = False,
+                                limit: Optional[int] = None) -> AbstractsReport:
+        """Fetch the abstract of the page nodes in `local_names` that do not have
+        one yet (or, when `refresh`, every page not already fetched today), at most
+        `limit` of them; the rest
+        are reported as `remaining`. Category nodes are skipped: they are not
+        ingredients and have no article.
+
+        The first batch that fails transiently stops the run: Wikipedia is then
+        likely down, and each further batch would wait out the same timeouts and
+        retries. That batch is `failed`, the rest `remaining`; both stay
+        un-hydrated for a later call. The cache is saved every
+        PERSIST_EVERY_BATCHES batches and at the end, so a crash loses at most
+        that much (re-fetchable) work.
+        """
+        report = AbstractsReport()
+        if self.wikipedia_client is None:
+            logger.warning("no Wikipedia client configured: abstracts not hydrated")
+            return report
+
+        today = dt.date.today().isoformat()
+        pending = []
+        for name in dict.fromkeys(local_names):
+            if not self.store.has_node(name) or name.startswith("Category:"):
+                continue
+            # A refresh skips pages already fetched today, so repeated limited calls
+            # move on to the next pages instead of re-fetching the first ones.
+            if self.store.is_abstract_hydrated(name) and (
+                    not refresh or (self.store.graph.nodes[name].get("abstract_fetched_at") or "") >= today):
+                continue
+            pending.append(name)
+        if limit is not None and len(pending) > limit:
+            report.remaining = len(pending) - limit
+            pending = pending[:limit]
+        report.requested = len(pending)
+
+        unsaved = 0
+        for start in range(0, len(pending), MAX_TITLES_PER_REQUEST):
+            batch = pending[start:start + MAX_TITLES_PER_REQUEST]
+            # A name Wikipedia can't take as a title has no article to fetch.
+            fetchable = [name for name in batch if is_valid_title(name)]
+            abstracts = {}
+            if fetchable:
+                report.wikipedia_calls_used += 1
+                try:
+                    abstracts = await self.wikipedia_client.fetch_abstracts(self.http_client, fetchable)
+                except WikipediaTransientError as exc:
+                    left = len(pending) - start - len(batch)
+                    report.failed += len(batch)
+                    report.remaining += left
+                    report.stopped = "wikipedia_unavailable"
+                    logger.warning("Wikipedia abstracts failed for %d nodes; stopping, %d more left for a "
+                                   "later call: %s", len(batch), left, exc)
+                    break
+
+            async with self.store.write_lock():
+                for name in batch:
+                    abstract = abstracts.get(name)
+                    self.store.set_abstract(name, abstract, today)
+                    if abstract:
+                        report.with_abstract += 1
+                    else:
+                        report.without_abstract += 1
+                unsaved += 1
+                if unsaved >= PERSIST_EVERY_BATCHES:
+                    await self.store.persist()
+                    unsaved = 0
+
+        # Forced whenever anything was written: a throttled persist() above may have skipped
+        # the last batches even when `unsaved` was just reset.
+        if report.with_abstract or report.without_abstract:
+            async with self.store.write_lock():
+                await self.store.persist(force=True)
+        logger.info(
+            "abstracts hydrated: requested=%d with=%d without=%d failed=%d remaining=%d calls=%d",
+            report.requested, report.with_abstract, report.without_abstract,
+            report.failed, report.remaining, report.wikipedia_calls_used,
+        )
+        return report
 
     # ------------------------------------------------------------------
     # synonyms: rdfs:label, alt names, redirects, disambiguations

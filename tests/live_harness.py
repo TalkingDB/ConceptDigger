@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
@@ -46,6 +47,23 @@ RECORDS_DIR = TESTS_DIR / "records"
 # ----------------------------------------------------------------------
 class LiveSparqlFailure(Exception):
     """The SPARQL endpoint / network misbehaved. Never a pass, never an assertion failure."""
+
+
+class LiveSparqlSkip(pytest.skip.Exception):
+    """The SPARQL endpoint / network misbehaved, reported as a skip: the public endpoint
+    is often slow or down, which says nothing about ConceptDigger. Never a pass."""
+
+
+def strict_live() -> bool:
+    """TEST_LIVE_STRICT=1: endpoint problems fail the test instead of skipping it."""
+    return os.environ.get("TEST_LIVE_STRICT", "").strip().lower() in {"1", "true", "yes"}
+
+
+def endpoint_problem(message: str) -> None:
+    """Stop a live test whose result the endpoint, not ConceptDigger, decided."""
+    if strict_live():
+        raise LiveSparqlFailure(message)
+    raise LiveSparqlSkip(f"SPARQL endpoint problem, test not judged: {message}")
 
 
 class HarnessError(Exception):
@@ -305,7 +323,7 @@ class ProbeResult:
 
     def require(self) -> None:
         if not self.ok:
-            raise LiveSparqlFailure(
+            endpoint_problem(
                 f"SPARQL endpoint {self.endpoint} is not reachable/usable: {self.error}. "
                 "Live tests cannot run; this is NOT a ConceptDigger assertion failure."
             )
@@ -350,6 +368,12 @@ class CaseRun:
     exception: str | None = None
     network_exception: bool = False
     sparql_calls: list[SparqlCall] = field(default_factory=list)
+
+
+def had_endpoint_trouble(run: CaseRun) -> bool:
+    """The endpoint failed this run somewhere: a network exception, HTTP 502, or a
+    lookup that still failed after retries."""
+    return run.network_exception or run.status_code == 502 or any(c.error for c in run.sparql_calls)
 
 
 def is_network_exception(exc: BaseException) -> bool:

@@ -154,6 +154,30 @@ Pre-warms the synonyms of one category or article.
 
 Returns `entity`, `synonyms_added` and `sparql_calls_used`.
 
+### `POST /api/v1/hydrate-abstracts`
+
+Fetches the abstract (the Wikipedia intro text) of the pages already cached
+under a category, at most `limit` pages per call. Use it to backfill a cache
+built before abstracts existed: **repeat the call until `remaining` is 0**.
+`/dig` also fetches abstracts for the pages it returns, up to the same limit.
+
+```json
+{ "root": "Category:Food_ingredients", "depth": 6, "refresh": false, "limit": 1000 }
+```
+
+Only reads the cached graph and never calls SPARQL; returns 404 if `root` is
+not cached, and 409 while another call for the same `root` is running. Pages
+that already have an abstract are skipped unless `refresh` is true; a refresh
+skips pages fetched today, so repeated refresh calls also reach `remaining: 0`. Returns
+`requested`, `with_abstract`, `without_abstract`, `failed`, `remaining`,
+`stopped` and `wikipedia_calls_used`. The first batch Wikipedia fails on stops
+the call (`stopped: "wikipedia_unavailable"`): that batch is `failed` and the
+rest `remaining`, and calling again fetches only those.
+
+Abstracts come from Wikipedia, not DBpedia: public DBpedia no longer serves
+`rdfs:comment` / `dbo:abstract`. One call covers up to 20 pages. Disambiguation
+pages, missing pages and category nodes get no abstract.
+
 ### `GET /api/v1/graph?root=Category:Birds&depth=6`
 
 A self-contained HTML tree viewer for the cached graph (search, zoom, pan,
@@ -163,6 +187,14 @@ expand/collapse, synonym tooltips).
 
 The same data as JSON: `{ root, depth, nodes[], edges[] }`. Used by the
 knowledge-source-api gateway.
+
+Each node has `id`, `entity_url`, `type`, `synonyms`, the hydration flags, and:
+
+| Field | Meaning |
+|---|---|
+| `abstract` | The page's Wikipedia intro text, or `null` (no article text, a disambiguation page, a category, or not fetched yet). Raw and unreviewed: do not show it to end users as-is |
+| `abstract_fetched_at` | Date the abstract was fetched (`YYYY-MM-DD`), or `null` |
+| `abstract_hydrated` | `true` once Wikipedia was asked. Tells "has no abstract" (`true`) from "not fetched yet" (`false`) |
 
 Both graph endpoints only read the cache. They never call SPARQL. If the root
 has not been hydrated yet, the result is empty with a note; run
@@ -186,6 +218,12 @@ All settings are environment variables.
 | `SPARQL_TIMEOUT_SECONDS` | `20` | Read timeout per SPARQL call |
 | `SPARQL_MIN_INTERVAL_SECONDS` | `0.5` | Minimum gap between outgoing calls, shared by the whole process |
 | `SPARQL_MAX_RETRIES` | `3` | Retries on 429/502/503/504. Timeouts get one retry |
+| `WIKIPEDIA_API_URL` | `https://en.wikipedia.org/w/api.php` | MediaWiki API used for page abstracts |
+| `WIKIPEDIA_USER_AGENT` | `ConceptDigger/2.0 (https://github.com/TalkingDB/ConceptDigger)` | Must include contact details (a URL is enough); Wikipedia answers 403 without them |
+| `WIKIPEDIA_TIMEOUT_SECONDS` | `20` | Read timeout per Wikipedia call |
+| `WIKIPEDIA_MIN_INTERVAL_SECONDS` | `0.2` | Minimum gap between Wikipedia calls |
+| `WIKIPEDIA_MAX_RETRIES` | `3` | Retries on timeouts, 429/502/503/504 and API rate-limit errors |
+| `ABSTRACTS_PER_REQUEST` | `1000` | Most pages one `/dig` or `/hydrate-abstracts` call fetches abstracts for (50 Wikipedia calls), so a request stays inside gateway timeouts |
 | `CACHE_FILE_PATH` | `data/graph_cache.json` | Where the graph cache is saved |
 | `PERSIST_INTERVAL_SECONDS` | `30` | Minimum gap between cache writes while hydrating; a dig or hydrate request always writes once at its end. `0` writes after every hydration (slow on deep digs: each write re-serialises the whole graph) |
 | `EXPORT_MAX_FILES` | `50` | Newest export JSON files to keep under `data/exports/`; `0` disables pruning |
@@ -254,8 +292,9 @@ app/
   category.py        Input normalization and validation
   dig.py             Traversal and output building for /dig
   export.py          JSON file export and cache-only traversal for /export
-  hydration.py       SPARQL call counter and hydration of structure and synonyms
+  hydration.py       SPARQL call counter and hydration of structure, synonyms and abstracts
   sparql_client.py   Async SPARQL client with throttling and retries
+  wikipedia_client.py  Async Wikipedia client for page abstracts
   graph_store.py     In-memory graph, JSON cache, de-duplication
   utils.py           Label conversion and name safety checks
   routers/           dig, hydrate, graph, graph_data, health
@@ -279,8 +318,14 @@ Run artifacts (JUnit XML, HTML report, JSON summary) are written to
 `tests/records/`. Expected `/dig` and `/graph/data` payloads are stored in
 `tests/test_data/golden/`.
 
-GitHub Actions runs `pytest tests/` on every pull request and every push to
-`main`/`master`. Mark the `pytest` check as required in branch protection.
+The live tests (`tests/test_live_*.py`, marker `live`) query the public DBpedia
+endpoint; run only the offline ones with `pytest tests/ -m "not live"`.
+
+GitHub Actions runs the offline tests on every pull request, and the whole suite
+(live tests included) on every push to `main`/`master` and when started by hand
+(Actions tab, "Run workflow"). Pull requests skip the live tests because a slow
+or unreachable DBpedia would otherwise fail them for reasons unrelated to the
+change. Mark the `pytest` check as required in branch protection.
 
 ## Differences from the legacy service
 
