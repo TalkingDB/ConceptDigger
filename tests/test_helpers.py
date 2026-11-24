@@ -3,10 +3,10 @@ import httpx
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.graph_store import GraphStore
-from app.hydration import HydrationService
-from app.main import app
-from app.sparql_client import SparqlTransientError
+from concept_digger.graph_store import GraphStore
+from concept_digger.hydration import HydrationService
+from concept_digger.main import app
+from concept_digger.sparql_client import SparqlTransientError
 
 
 class Stub:

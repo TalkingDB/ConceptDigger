@@ -244,7 +244,7 @@ mounts `./data` so the cache survives restarts. Check it with:
 curl http://localhost:5007/api/v1/health
 ```
 
-For development with live reload (mounts `./app` and `./data`):
+For development with live reload (mounts `./concept_digger` and `./data`):
 
 ```bash
 docker compose up --build
@@ -253,8 +253,8 @@ docker compose up --build
 Without Docker (Python 3.12):
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 5007
+pip install -r requirements.txt     # this package (editable) with the server extra
+uvicorn concept_digger.main:app --host 0.0.0.0 --port 5007
 ```
 
 Try a dig:
@@ -283,10 +283,31 @@ are served from the cache.
 - **Input validation** - category names that could alter a SPARQL query are
   rejected before any query is built.
 
+## Using it as a library
+
+The code is an installable Python package, `concept_digger` (distribution `concept-digger`,
+`pyproject.toml`), so another service can dig in its own process instead of calling this API.
+Install it from a commit:
+
+```bash
+pip install "concept-digger @ https://github.com/TalkingDB/ConceptDigger/archive/<commit>.tar.gz"
+```
+
+```python
+from concept_digger.dig import run_dig
+from concept_digger.graph_store import GraphStore
+from concept_digger.hydration import HydrationService, SparqlBudget
+from concept_digger.routers.graph import _build_graph_data   # the /graph/data payload
+```
+
+Settings are read from the environment when `concept_digger.config` is first imported, as for
+the service. The library needs only `fastapi`, `httpx` and `networkx`; the `server` extra adds
+`uvicorn`. ConceptDigger is AGPL-3.0: a service that links it is covered by the licence too.
+
 ## Project structure
 
 ```
-app/
+concept_digger/
   main.py            FastAPI app and startup wiring
   config.py          Environment-driven settings
   category.py        Input normalization and validation

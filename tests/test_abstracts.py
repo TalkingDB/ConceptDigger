@@ -15,10 +15,10 @@ import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.graph_store import GraphStore
-from app.hydration import HydrationService
-from app.main import app
-from app.wikipedia_client import WikipediaClient, WikipediaTransientError
+from concept_digger.graph_store import GraphStore
+from concept_digger.hydration import HydrationService
+from concept_digger.main import app
+from concept_digger.wikipedia_client import WikipediaClient, WikipediaTransientError
 
 UA = "ConceptDigger-test/1.0 (https://example.invalid/repo)"
 
@@ -202,7 +202,7 @@ async def test_hydrate_abstracts_batches_pages_and_skips_categories(tmp_path):
 async def test_hydrate_abstracts_saves_last_batches_despite_throttled_writes(tmp_path):
     # A long persist interval skips every unforced write; the last batch also ends exactly on
     # a save point (unsaved reset to 0). The end of the backfill must still force a write.
-    from app.hydration import PERSIST_EVERY_BATCHES
+    from concept_digger.hydration import PERSIST_EVERY_BATCHES
     pages = [f"Page_{i}" for i in range(20 * PERSIST_EVERY_BATCHES)]
     store = seeded_store(tmp_path, pages)
     store.persist_interval_seconds = 3600
@@ -396,9 +396,9 @@ async def test_hydrate_abstracts_one_call_per_root_at_a_time(api):
 async def test_dig_fetches_at_most_abstracts_per_request(api, monkeypatch):
     import dataclasses
 
-    from app.config import settings
+    from concept_digger.config import settings
     client, _store, wiki = api
-    monkeypatch.setattr("app.dig.settings", dataclasses.replace(settings, abstracts_per_request=1))
+    monkeypatch.setattr("concept_digger.dig.settings", dataclasses.replace(settings, abstracts_per_request=1))
     resp = await client.post("/api/v1/dig", json={"categories": ["Category:Food"], "max_depth": 1})
     assert resp.status_code == 200
     assert sum(len(b) for b in wiki.batches) == 1

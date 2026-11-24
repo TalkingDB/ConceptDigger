@@ -1,7 +1,7 @@
 """GraphStore.persist is throttled by persist_interval_seconds; force always writes."""
 import json
 
-from app.graph_store import GraphStore
+from concept_digger.graph_store import GraphStore
 
 
 def _cached_nodes(path):
@@ -26,7 +26,7 @@ async def test_persist_within_interval_is_skipped_until_forced(tmp_path):
 
 async def test_first_write_is_not_skipped_on_a_freshly_booted_machine(tmp_path, monkeypatch):
     # time.monotonic() counts from boot on Linux: a CI runner can be younger than the interval.
-    monkeypatch.setattr("app.graph_store.time.monotonic", lambda: 120.0)
+    monkeypatch.setattr("concept_digger.graph_store.time.monotonic", lambda: 120.0)
     path = tmp_path / "graph_cache.json"
     store = GraphStore(str(path), persist_interval_seconds=3600)
     async with store.write_lock():

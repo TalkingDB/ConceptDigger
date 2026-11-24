@@ -5,7 +5,7 @@ Each test uses its own empty graph cache and the real endpoint.
 """
 import pytest
 
-from app.category import parse_resource_url
+from concept_digger.category import parse_resource_url
 from tests.expectations import CATEGORY_PREFIX, Check, conclude, dig_checks, flatten_documents, raise_for_verdict
 from tests.live_harness import CaseRun, attempt, get_case, load_expected
 from tests.reporting import LiveView, register_view

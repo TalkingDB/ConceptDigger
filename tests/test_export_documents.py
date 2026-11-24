@@ -4,10 +4,10 @@ Offline checks of the /dig and /export document shape: one document per
 """
 import json
 
-from app.export import collect_from_cache, write_exports
-from app.graph_store import GraphStore
-from app.routers.graph import _build_graph_data
-from app.category import wikipedia_entity_url
+from concept_digger.export import collect_from_cache, write_exports
+from concept_digger.graph_store import GraphStore
+from concept_digger.routers.graph import _build_graph_data
+from concept_digger.category import wikipedia_entity_url
 
 SEED = "Category:Food_ingredients"
 

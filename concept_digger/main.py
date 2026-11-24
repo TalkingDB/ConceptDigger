@@ -6,7 +6,7 @@ once at startup (lifespan) and stashed on app.state, so every request
 handler shares the same in-memory graph and connection pool.
 
 Run directly with:
-    uvicorn app.main:app --host 0.0.0.0 --port 5007
+    uvicorn concept_digger.main:app --host 0.0.0.0 --port 5007
 
 """
 import logging
@@ -17,9 +17,9 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
-logging.getLogger("app").setLevel(logging.INFO)
-if not logging.getLogger("app").handlers:
-    logging.getLogger("app").addHandler(logging.StreamHandler())
+logging.getLogger("concept_digger").setLevel(logging.INFO)
+if not logging.getLogger("concept_digger").handlers:
+    logging.getLogger("concept_digger").addHandler(logging.StreamHandler())
 
 
 from .config import settings

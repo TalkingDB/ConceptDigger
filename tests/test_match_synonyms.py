@@ -7,9 +7,9 @@ import pytest_asyncio
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.main import app
-from app.synonym_index import surface_hits
-from app.category import wikipedia_entity_url
+from concept_digger.main import app
+from concept_digger.synonym_index import surface_hits
+from concept_digger.category import wikipedia_entity_url
 BEN = {
     "entity_url": wikipedia_entity_url("Ben_oil"),
     "entity": "Ben_oil",

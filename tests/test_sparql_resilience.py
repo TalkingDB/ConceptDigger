@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
-from app.sparql_client import SparqlClient, SparqlTransientError
+from concept_digger.sparql_client import SparqlClient, SparqlTransientError
 
 
 def _ok_response():
@@ -31,7 +31,7 @@ def test_read_timeout_is_retried_then_succeeds():
     http.post = AsyncMock(side_effect=[httpx.ReadTimeout("slow"), _ok_response()])
 
     async def run():
-        with patch("app.sparql_client.asyncio.sleep", new=AsyncMock()):
+        with patch("concept_digger.sparql_client.asyncio.sleep", new=AsyncMock()):
             return await client._run(http, "SELECT * WHERE { ?s ?p ?o }")
 
     assert asyncio.run(run()) == []
@@ -44,7 +44,7 @@ def test_repeated_read_timeout_becomes_transient_error():
     http.post = AsyncMock(side_effect=httpx.ReadTimeout("slow"))
 
     async def run():
-        with patch("app.sparql_client.asyncio.sleep", new=AsyncMock()):
+        with patch("concept_digger.sparql_client.asyncio.sleep", new=AsyncMock()):
             await client._run(http, "SELECT * WHERE { ?s ?p ?o }")
 
     try:
@@ -63,7 +63,7 @@ def test_post_405_is_retried_once_as_get():
     http.get = AsyncMock(return_value=_ok_response())
 
     async def run():
-        with patch("app.sparql_client.asyncio.sleep", new=AsyncMock()):
+        with patch("concept_digger.sparql_client.asyncio.sleep", new=AsyncMock()):
             return await client._run(http, "SELECT * WHERE { ?s ?p ?o }")
 
     assert asyncio.run(run()) == []
@@ -78,7 +78,7 @@ def test_http_502_is_retried_then_becomes_transient_error():
     http.post = AsyncMock(return_value=_http_response(502))
 
     async def run():
-        with patch("app.sparql_client.asyncio.sleep", new=AsyncMock()):
+        with patch("concept_digger.sparql_client.asyncio.sleep", new=AsyncMock()):
             await client._run(http, "SELECT * WHERE { ?s ?p ?o }")
 
     try:
