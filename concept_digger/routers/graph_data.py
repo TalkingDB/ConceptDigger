@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query, Request
 
 from ..category import require_resource
 from ..config import settings
-from .graph import _build_graph_data
+from ..graph_data import build_graph_data
 
 router = APIRouter(prefix="/api/v1", tags=["graph"])
 
@@ -29,4 +29,4 @@ async def get_graph_data(
 ):
     root = require_resource(root)
     depth = min(depth, settings.max_depth_hard_cap + 1)
-    return _build_graph_data(store=request.app.state.store, root=root, depth=depth)
+    return build_graph_data(store=request.app.state.store, root=root, depth=depth)

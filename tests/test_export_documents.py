@@ -6,7 +6,7 @@ import json
 
 from concept_digger.export import collect_from_cache, write_exports
 from concept_digger.graph_store import GraphStore
-from concept_digger.routers.graph import _build_graph_data
+from concept_digger.graph_data import build_graph_data
 from concept_digger.category import wikipedia_entity_url
 
 SEED = "Category:Food_ingredients"
@@ -58,7 +58,7 @@ def test_export_file_holds_the_documents(tmp_path):
 
 
 def test_graph_nodes_include_wikipedia_entity_url(tmp_path):
-    data = _build_graph_data(_store(tmp_path), SEED, 1)
+    data = build_graph_data(_store(tmp_path), SEED, 1)
     by_id = {node["id"]: node for node in data["nodes"]}
     assert by_id["Ben_oil"]["entity_url"] == wikipedia_entity_url("Ben_oil")
     assert by_id["Category:Spices"]["entity_url"] == wikipedia_entity_url("Category:Spices")

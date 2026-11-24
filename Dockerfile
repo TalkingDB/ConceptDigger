@@ -4,7 +4,9 @@ WORKDIR /app
 
 COPY pyproject.toml README.md LICENCE-AGPL-3.0.txt ./
 COPY concept_digger/ ./concept_digger/
-RUN pip install --no-cache-dir -e ".[server]"
+# A normal (not editable) install. uvicorn runs from /app, which it puts first on the import
+# path, so docker-compose.yml's mount of ./concept_digger there is what --reload serves.
+RUN pip install --no-cache-dir ".[server]"
 
 ENV PORT=5007
 EXPOSE 5007

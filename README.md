@@ -297,7 +297,7 @@ pip install "concept-digger @ https://github.com/TalkingDB/ConceptDigger/archive
 from concept_digger.dig import run_dig
 from concept_digger.graph_store import GraphStore
 from concept_digger.hydration import HydrationService, SparqlBudget
-from concept_digger.routers.graph import _build_graph_data   # the /graph/data payload
+from concept_digger.graph_data import build_graph_data     # the /graph/data payload
 ```
 
 Settings are read from the environment when `concept_digger.config` is first imported, as for
