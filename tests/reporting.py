@@ -29,7 +29,7 @@ from typing import Any
 import pytest
 from pytest_html import extras
 
-from app.sparql_client import _PREFIXES
+from concept_digger.sparql_client import _PREFIXES
 from tests.expectations import ASSERTION, EXECUTION, NETWORK, PASS, Check, Verdict
 from tests.live_harness import (
     EXPECTED_DIR,

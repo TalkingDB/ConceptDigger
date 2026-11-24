@@ -1,13 +1,13 @@
 from fastapi import HTTPException
 
-from app.category import (
+from concept_digger.category import (
     CategoryUrlError,
     parse_category_url,
     parse_resource_url,
     require_max_depth,
     wikipedia_entity_url,
 )
-from app.config import settings
+from concept_digger.config import settings
 
 
 def test_parse_category_url_from_dbpedia_and_wikipedia():

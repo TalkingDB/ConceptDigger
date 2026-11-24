@@ -27,13 +27,13 @@ import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.category import parse_category_url, parse_resource_url, wikipedia_entity_url
-from app.config import settings
-from app.dig import DigResponse
-from app.graph_store import GraphStore
-from app.hydration import HydrationService
-from app.main import app
-from app.sparql_client import SparqlClient, SparqlTransientError
+from concept_digger.category import parse_category_url, parse_resource_url, wikipedia_entity_url
+from concept_digger.config import settings
+from concept_digger.dig import DigResponse
+from concept_digger.graph_store import GraphStore
+from concept_digger.hydration import HydrationService
+from concept_digger.main import app
+from concept_digger.sparql_client import SparqlClient, SparqlTransientError
 
 TESTS_DIR = Path(__file__).resolve().parent
 DATA_DIR = TESTS_DIR / "debug_data"

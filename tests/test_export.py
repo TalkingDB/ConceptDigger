@@ -9,12 +9,12 @@ import pytest
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.category import wikipedia_entity_url
-from app.config import settings
-from app.export import write_exports
-from app.graph_store import GraphStore
-from app.hydration import HydrationService
-from app.main import app
+from concept_digger.category import wikipedia_entity_url
+from concept_digger.config import settings
+from concept_digger.export import write_exports
+from concept_digger.graph_store import GraphStore
+from concept_digger.hydration import HydrationService
+from concept_digger.main import app
 
 CATEGORY = "Category:Noble_gases"
 RECORD = {
@@ -181,7 +181,7 @@ async def test_dig_reports_when_export_write_fails(stub_api, monkeypatch):
     def boom(*_args, **_kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr("app.routers.dig.write_exports", boom)
+    monkeypatch.setattr("concept_digger.routers.dig.write_exports", boom)
     response = await client.post(
         "/api/v1/dig",
         json={"categories": [CATEGORY], "max_depth": 0, "export": True},
@@ -201,7 +201,7 @@ async def test_export_reports_when_write_fails(stub_api, monkeypatch):
     def boom(*_args, **_kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr("app.routers.dig.write_exports", boom)
+    monkeypatch.setattr("concept_digger.routers.dig.write_exports", boom)
     response = await client.post(
         "/api/v1/export",
         json={"category": CATEGORY, "max_depth": 0},
@@ -327,7 +327,7 @@ def test_write_exports_prunes_old_files(tmp_path):
 
 
 def test_pruning_disabled_never_deletes_files(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.export.settings", replace(settings, export_max_files=0))
+    monkeypatch.setattr("concept_digger.export.settings", replace(settings, export_max_files=0))
     store = GraphStore(str(tmp_path / "graph_cache.json"))
     folder = tmp_path / "exports"
     folder.mkdir()

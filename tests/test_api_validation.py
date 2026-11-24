@@ -3,7 +3,7 @@ Offline API tests: request validation that is rejected BEFORE any SPARQL query
 would be built. The app is wired to a client that fails the test if SPARQL is
 touched, so these cannot silently depend on the network or on mock data.
 """
-from app.config import settings
+from concept_digger.config import settings
 
 
 async def test_health_on_empty_graph(offline_api):

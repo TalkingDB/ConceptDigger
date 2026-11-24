@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.sparql_client import SparqlClient
+from concept_digger.sparql_client import SparqlClient
 
 ALT_NAME_PROPERTIES = [
     "dbo:alias",

@@ -1,5 +1,5 @@
 """Empty env vars must fall back to documented defaults instead of crashing."""
-from app.config import Settings, _env_float, _env_int, _env_str
+from concept_digger.config import Settings, _env_float, _env_int, _env_str
 
 EMPTY_ENV = [
     "SPARQL_ENDPOINT",

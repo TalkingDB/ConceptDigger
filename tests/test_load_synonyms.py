@@ -12,11 +12,11 @@ import pytest_asyncio
 from httpx import ASGITransport
 from starlette.datastructures import State
 
-from app.export import export_dir, list_export_files
-from app.graph_store import GraphStore
-from app.main import app
-from app.routers.synonyms import patch_openapi_file_enum
-from app.category import wikipedia_entity_url
+from concept_digger.export import export_dir, list_export_files
+from concept_digger.graph_store import GraphStore
+from concept_digger.main import app
+from concept_digger.routers.synonyms import patch_openapi_file_enum
+from concept_digger.category import wikipedia_entity_url
 
 BEN = {
     "entity_url": wikipedia_entity_url("Ben_oil"),
@@ -122,7 +122,7 @@ def test_export_files_are_newest_first_by_stamp(store):
 
 def test_openapi_file_name_dropdown_is_newest_first(monkeypatch):
     names = ["Food_20261023T010000.json", "Food_20261021T153000.json"]
-    monkeypatch.setattr("app.main.export_names_for_docs", lambda: names)
+    monkeypatch.setattr("concept_digger.main.export_names_for_docs", lambda: names)
 
     schema = app.openapi()
 

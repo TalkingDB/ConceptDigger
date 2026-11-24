@@ -1,4 +1,4 @@
-from app.graph_store import GraphStore
+from concept_digger.graph_store import GraphStore
 from tests.test_helpers import Stub, dig
 
 async def test_structure_query_failure_returns_incomplete_status(tmp_path):

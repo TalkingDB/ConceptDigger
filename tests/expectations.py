@@ -17,8 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.category import wikipedia_entity_url
-from app.configs.data_sources import WIKIPEDIA_BASE_URL
+from concept_digger.category import wikipedia_entity_url
+from concept_digger.configs.data_sources import WIKIPEDIA_BASE_URL
 from tests.live_harness import (
     Case,
     CaseRun,

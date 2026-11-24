@@ -4,7 +4,7 @@ services:
     ports:
       - "5007:5007"
     volumes:
-      - ./app:/app/app
+      - ./concept_digger:/app/concept_digger
       - ./data:/app/data
     environment:
       - CACHE_FILE_PATH=data/graph_cache.json
@@ -22,14 +22,14 @@ services:
       - "traefik.http.services.conceptdigger.loadbalancer.server.port=5007"
     command:
       - uvicorn
-      - app.main:app
+      - concept_digger.main:app
       - --host
       - "0.0.0.0"
       - --port
       - "5007"
       - --reload
       - --reload-dir
-      - app
+      - concept_digger
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0

@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from app.config import settings
+from concept_digger.config import settings
 from tests.live_harness import EXPECTED_DIR, HarnessError, load_cases, load_expected
 from tests.test_live_endpoints import GRAPH_CASE_ID
 
