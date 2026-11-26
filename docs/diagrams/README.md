@@ -16,6 +16,7 @@ Every diagram in this repository's documentation is written in [Mermaid](https:/
 
 ## Rules these diagrams follow
 
+- Rendered at their natural size (`useMaxWidth: false` in `light.json` and `dark.json`), so GitHub does not stretch a small diagram or shrink a wide one until its text is unreadable. Keep a diagram under about 830 px wide, the width of a README; if a left to right flowchart grows wider, switch it to `TB`.
 - Under 20 boxes; split anything bigger.
 - No fixed colours; the light and dark renders take their colours from the theme. "This repository" is marked with a thicker border.
 - `accTitle` and `accDescr` in every file. The description is also the image's alt text.

@@ -1,4 +1,4 @@
-flowchart LR
+flowchart TB
     accTitle: How a dig runs
     accDescr: A seed category is normalised and checked with one SPARQL ASK. Unknown seeds return 404. New categories are hydrated with sub categories and member articles, the cached graph is walked to max depth, synonyms are hydrated for every collected node, and one document per node is returned. The graph is saved to a JSON cache after hydration.
     S["seed category<br>URL or Category:Name"] --> N["1. Normalize"]

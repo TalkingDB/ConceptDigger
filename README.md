@@ -8,6 +8,11 @@ ConceptDigger replaces a 2015 Python 2 raw-socket service. Instead of loading
 huge DBpedia dump files into RAM at startup, it queries a live SPARQL endpoint
 on demand and caches what it learns.
 
+<p align="center">
+  <img src="docs/images/demo.gif" alt="A short animated tour of ConceptDigger: what it is, how to start, and which page to read next">
+</p>
+<p align="center"><sub>A short tour: what it is, how to start, and what to read next.</sub></p>
+
 | Start here | Go deeper |
 | :--- | :--- |
 | [How it works](#how-it-works) | [API](#api) and [configuration](#configuration) |
@@ -417,6 +422,12 @@ updated to the new request and response format.
 - [SKOS reference](https://www.w3.org/TR/skos-reference/), for `skos:broader`
 - [Wikipedia: redirects](https://en.wikipedia.org/wiki/Wikipedia:Redirect)
 - [MediaWiki Action API](https://www.mediawiki.org/wiki/API:Main_page)
+
+## Support TalkingDB
+
+If ConceptDigger saved you time, please [give it a star](https://github.com/TalkingDB/ConceptDigger) ⭐. Stars help other developers find the project.
+
+Found a bug, or a document it gets wrong? [Open an issue](https://github.com/TalkingDB/ConceptDigger/issues/new). We are always here to help and open to a conversation. Explore the TalkingDB applications at [talkingdb.io](https://talkingdb.io/#applications).
 
 ## License
 

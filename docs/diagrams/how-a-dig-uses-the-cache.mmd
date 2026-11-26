@@ -1,4 +1,4 @@
-flowchart LR
+flowchart TB
     accTitle: How a dig uses the cache
     accDescr: A dig request names a category. If its structure is not in the cache, two SPARQL calls fetch its sub-categories and articles. The cached graph is walked to the requested depth. For each collected node whose synonyms are not cached, four SPARQL calls fetch its names. The cache is saved to a JSON file, and the response lists each node with its names.
     R["POST /api/v1/dig"] --> S{"Structure<br>in cache?"}
