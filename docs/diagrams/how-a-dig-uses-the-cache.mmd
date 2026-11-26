@@ -1,0 +1,13 @@
+flowchart LR
+    accTitle: How a dig uses the cache
+    accDescr: A dig request names a category. If its structure is not in the cache, two SPARQL calls fetch its sub-categories and articles. The cached graph is walked to the requested depth. For each collected node whose synonyms are not cached, four SPARQL calls fetch its names. The cache is saved to a JSON file, and the response lists each node with its names.
+    R["POST /api/v1/dig"] --> S{"Structure<br>in cache?"}
+    S -->|"no: 2 SPARQL calls"| H1["Fetch sub-categories<br>and articles"]
+    S -->|"yes"| W["Walk to max_depth"]
+    H1 --> W
+    W --> Y{"Synonyms<br>in cache?"}
+    Y -->|"no: 4 SPARQL calls"| H2["Fetch labels, names,<br>redirects, disambiguations"]
+    Y -->|"yes"| O["Response: one record<br>per node, with its names"]
+    H2 --> O
+    H2 --> C[("data/graph_cache.json")]
+    H1 --> C

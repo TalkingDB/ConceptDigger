@@ -1,12 +1,22 @@
 # ConceptDigger
 
-A REST service that digs a DBpedia category tree and returns every category and
+A [REST](https://developer.mozilla.org/en-US/docs/Glossary/REST) service that digs a DBpedia category tree and returns every category and
 article under it, together with the surface-text synonyms for each one. The
-output is used as training data for Named Entity Recognition (NER) models.
+output is used as training data for Named Entity Recognition ([NER](https://en.wikipedia.org/wiki/Named-entity_recognition)) models.
 
 ConceptDigger replaces a 2015 Python 2 raw-socket service. Instead of loading
 huge DBpedia dump files into RAM at startup, it queries a live SPARQL endpoint
 on demand and caches what it learns.
+
+| Start here | Go deeper |
+| :--- | :--- |
+| [How it works](#how-it-works) | [API](#api) and [configuration](#configuration) |
+| [Running it](#running-it) | [Using it as a library](#using-it-as-a-library) |
+| [Concepts in plain words](docs/concepts.md): categories, DBpedia, SPARQL, surface texts, the cache | [All docs](docs/README.md) |
+| [What ConceptDigger is not](#what-conceptdigger-is-not) | [Troubleshooting](docs/troubleshooting.md) |
+| [Known limitations](#known-limitations) | [Related repositories](#related-repositories) |
+
+Two terms used throughout: **[DBpedia](https://www.dbpedia.org/about/)** is a machine readable copy of Wikipedia's facts, queried here with **[SPARQL](https://www.w3.org/TR/sparql11-query/)**, the query language for that kind of linked data. A **surface text** is one way a person might write a name; the synonyms this service returns are surface texts.
 
 ## How it works
 
@@ -28,6 +38,15 @@ on demand and caches what it learns.
 The graph is saved to a JSON file after each hydration step, so a repeat dig
 over the same categories needs no SPARQL calls at all, and the cache survives
 restarts.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/how-a-dig-runs-dark.svg">
+  <img alt="A seed category is normalised and checked with one SPARQL ASK. Unknown seeds return 404. New categories are hydrated with sub categories and member articles, the cached graph is walked to max depth, synonyms are hydrated for every collected node, and one document per node is returned. The graph is saved to a JSON cache after hydration." src="docs/images/how-a-dig-runs.svg">
+</picture>
+
+<sub>Diagram source: [how-a-dig-runs.mmd](docs/diagrams/how-a-dig-runs.mmd). Edit it and re-render with the steps in [docs/diagrams](docs/diagrams/README.md).</sub>
+
+In words: the seed is checked, its part of the category graph is fetched once and cached, the cache is walked to the requested depth, and each node comes back with every synonym DBpedia knows for it.
 
 ### Depth
 
@@ -79,7 +98,7 @@ Accepted category formats:
 
 Response: a JSON array with one document per (entity, seed category), with
 all of the entity's synonyms grouped under `surface_text`. This is the shape
-loaded into Elasticsearch (abridged, illustrative):
+loaded into [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch) (abridged, illustrative):
 
 ```json
 [
@@ -231,7 +250,7 @@ All settings are environment variables.
 
 ## Running it
 
-With Docker:
+With [Docker](https://docs.docker.com/get-started/docker-overview/):
 
 ```bash
 ./start.sh
@@ -302,7 +321,7 @@ from concept_digger.graph_data import build_graph_data     # the /graph/data pay
 
 Settings are read from the environment when `concept_digger.config` is first imported, as for
 the service. The library needs only `fastapi`, `httpx` and `networkx`; the `server` extra adds
-`uvicorn`. ConceptDigger is AGPL-3.0: a service that links it is covered by the licence too.
+`uvicorn`. ConceptDigger is [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html): a service that links it is covered by the licence too.
 
 ## Project structure
 
@@ -327,7 +346,7 @@ start.sh
 
 ## Tests
 
-Functional tests talk to the FastAPI app with a mocked SPARQL client and
+Functional tests talk to the [FastAPI](https://fastapi.tiangolo.com/) app with a mocked SPARQL client and
 fixtures in `tests/test_data/`. They never call live DBpedia.
 
 ```bash
@@ -342,7 +361,7 @@ Run artifacts (JUnit XML, HTML report, JSON summary) are written to
 The live tests (`tests/test_live_*.py`, marker `live`) query the public DBpedia
 endpoint; run only the offline ones with `pytest tests/ -m "not live"`.
 
-GitHub Actions runs the offline tests on every pull request, and the whole suite
+[GitHub Actions](https://docs.github.com/en/actions) runs the offline tests on every pull request, and the whole suite
 (live tests included) on every push to `main`/`master` and when started by hand
 (Actions tab, "Run workflow"). Pull requests skip the live tests because a slow
 or unreachable DBpedia would otherwise fail them for reasons unrelated to the
@@ -370,12 +389,34 @@ updated to the new request and response format.
 - The cache never expires, so DBpedia changes are not picked up automatically.
   Delete the cache file to rebuild it.
 - Runs as a single worker. Several workers would each keep their own graph; a
-  shared store such as Redis would be needed to scale out.
+  shared store such as [Redis](https://en.wikipedia.org/wiki/Redis) would be needed to scale out.
 - If lookups are skipped after repeated failures, the response is not flagged
   as incomplete.
 - The public DBpedia endpoint can be slow or rate-limited; a self-hosted
   endpoint is recommended for heavy use.
 - No authentication.
+
+## What ConceptDigger is not
+
+- **Not a synonym judge.** It returns every name DBpedia records, including redirects that are spelling variants or loosely related titles. Review before training them into a matcher.
+- **Not a full Wikipedia mirror.** It fetches only the part of the category graph you dig, and keeps it in one JSON cache.
+- **Not multi worker.** One process holds the graph; scaling out needs a shared store.
+- **Not secured.** There is no authentication; keep it behind a gateway.
+
+## Related repositories
+
+| Repository | Relationship |
+| :--- | :--- |
+| [package-named-entity-linker](https://github.com/TalkingDB/package-named-entity-linker) | Where harvested synonyms can be trained as surface texts |
+| [package-parse-tree](https://github.com/TalkingDB/package-parse-tree) | [Ontology](https://en.wikipedia.org/wiki/Ontology_(information_science)) nodes carry `alternate_names` that become surface texts |
+| [Training-Portal](https://github.com/TalkingDB/Training-Portal) | The 2016 client of the old socket protocol |
+
+## Further reading
+
+- [DBpedia SPARQL endpoint](https://www.dbpedia.org/resources/sparql/)
+- [SKOS reference](https://www.w3.org/TR/skos-reference/), for `skos:broader`
+- [Wikipedia: redirects](https://en.wikipedia.org/wiki/Wikipedia:Redirect)
+- [MediaWiki Action API](https://www.mediawiki.org/wiki/API:Main_page)
 
 ## License
 

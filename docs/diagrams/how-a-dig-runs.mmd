@@ -1,0 +1,13 @@
+flowchart LR
+    accTitle: How a dig runs
+    accDescr: A seed category is normalised and checked with one SPARQL ASK. Unknown seeds return 404. New categories are hydrated with sub categories and member articles, the cached graph is walked to max depth, synonyms are hydrated for every collected node, and one document per node is returned. The graph is saved to a JSON cache after hydration.
+    S["seed category<br>URL or Category:Name"] --> N["1. Normalize"]
+    N --> C{"2. Check<br>SPARQL ASK"}
+    C -- "unknown" --> E404["404"]
+    C -- "exists" --> H["3. Hydrate structure<br>skos:broader, dct:subject"]
+    H --> W["4. Walk to max_depth"]
+    W --> SY["5. Hydrate synonyms<br>labels, aliases, redirects,<br>disambiguations"]
+    SY --> R["6. Respond<br>one document per node"]
+    H -. "save" .-> CACHE[("graph cache<br>JSON file")]
+    SY -. "save" .-> CACHE
+    CACHE -. "reused on the next dig" .-> W
