@@ -9,9 +9,9 @@ huge DBpedia dump files into RAM at startup, it queries a live SPARQL endpoint
 on demand and caches what it learns.
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="A short animated tour of ConceptDigger: what it is, how to start, and which page to read next">
+  <img src="docs/images/demo.gif" alt="Animated demo: digging Category:Noble_gases returns the six noble gases; Helium, Argon, Mercury (planet) and Turmeric show each name with where it came from: rdfs:label, alt_name, redirect or disambiguation">
 </p>
-<p align="center"><sub>A short tour: what it is, how to start, and what to read next.</sub></p>
+<p align="center"><sub>The values are the anchors the live tests check in <code>tests/debug_data</code>, recorded from real digs. What each source means is in <a href="docs/concepts.md">Concepts</a>.</sub></p>
 
 | Start here | Go deeper |
 | :--- | :--- |
