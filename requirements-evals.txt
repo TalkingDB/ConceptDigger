@@ -1,0 +1,2 @@
+# Evals that call an LLM judge (Eval/relevance_eval.py); not needed by the service or the tests
+openai>=2.48,<3

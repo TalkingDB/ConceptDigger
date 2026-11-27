@@ -19,5 +19,8 @@ tests/records/history/
 # local application data
 data/
 
+# eval reports and judge caches (Eval/relevance_eval.py)
+reports/
+
 # application logs
 *.log
