@@ -2,7 +2,7 @@
 
 [Docs home](README.md) › Troubleshooting
 
-Problems seen when running or calling ConceptDigger, with the cause and the fix. Settings named here are described in the [README configuration table](../README.md#configuration).
+Problems seen when running or calling ConceptDigger, with the cause and the fix. Settings named here are described in the [README configuration table](reference.md#configuration).
 
 | Symptom | Likely cause | Fix |
 | :--- | :--- | :--- |
@@ -27,4 +27,4 @@ Include the request body, the response code and body, the commit (`git rev-parse
 
 ---
 
-**Related:** [Concepts](concepts.md) · [Configuration](../README.md#configuration) · [Known limitations](../README.md#known-limitations)
+**Related:** [Concepts](concepts.md) · [Configuration](reference.md#configuration) · [Known limitations](reference.md#known-limitations)

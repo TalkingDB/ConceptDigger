@@ -71,4 +71,4 @@ TalkingDB's ontology builder uses it to turn a domain's Wikipedia categories int
 
 ---
 
-**Related:** [Docs home](README.md) · [Troubleshooting](troubleshooting.md) · [API in the README](../README.md#api)
+**Related:** [Docs home](README.md) · [Troubleshooting](troubleshooting.md) · [API in the README](reference.md#api)
